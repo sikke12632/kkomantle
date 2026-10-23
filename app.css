@@ -247,3 +247,4 @@ select { height: 46px; padding: 0 12px; border: 2px solid var(--line); border-ra
     .sheet .answer { font-size: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+#noteLen.bad { color: var(--red); font-weight: 700; }

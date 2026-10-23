@@ -58,6 +58,7 @@ export default async function (teacher) {
     await kidA.shot(join(OUT, 'kc-1-wait.png'));
 
     // ---- 판 열기 ----
+    await front(teacher);
     await teacher.eval(`document.querySelector('#revealEvery').value = '60'`);
     await click(teacher, '#btnOpen');
     await kidA.waitFor(`!document.querySelector('#guessForm').hidden`);
@@ -101,26 +102,42 @@ export default async function (teacher) {
     ok(await kidA.eval(`document.querySelector('#guessForm').hidden`), '맞히면 다른 아이도 더 쓸 수 없다');
     await kidB.shot(join(OUT, 'kc-3-note.png'));
 
-    // ---- 한마디: 다시 쓰게 했다가 띄우기 ----
-    await kidB.eval(`document.querySelector('#noteText').value = '오늘도 다들 화이팅!!'; document.querySelector('#noteSend').click()`);
-    await teacher.waitFor(`document.querySelector('[data-act=show]')`, 8000);
-    ok(await teacher.eval(`document.querySelector('.note-big').textContent.includes('화이팅')`), '선생님 화면에 맞힌 아이의 한마디가 온다');
-    await teacher.shot(join(OUT, 'kc-4-teacher.png'));
-    await click(teacher, '[data-act=reject]');
-    await kidB.waitFor(`__kk.modal === 'rewrite'`, 8000);
-    ok(true, '「다시 쓰게 하기」를 누르면 아이 화면에 다시 쓰기 창이 뜬다');
-    await kidB.eval(`document.querySelector('#noteText').value = '우리 반 모두 오늘 하루도 즐겁게 보내자! 너희가 있어서 행복해.'; document.querySelector('#noteSend').click()`);
-    await teacher.waitFor(`document.querySelector('[data-act=show]') && document.querySelector('.note-big').textContent.includes('행복')`, 8000);
-    await click(teacher, '[data-act=show]');
+    // ---- 한마디: 금지어는 막고, 보내면 선생님 검토 없이 바로 모두에게 ----
+    await kidB.eval(`document.querySelector('#noteText').value = '씨 1발 다들 화이팅'; document.querySelector('#noteSend').click()`);
+    await kidB.sleep(500);
+    const warn = await kidB.eval(`document.querySelector('#noteLen').textContent`);
+    ok(warn.includes('쓸 수 없는 말') && !warn.includes('발'), '띄어 쓰거나 숫자를 끼워도 금지어는 막고, 그 말을 되풀이하지 않는다');
+    ok(!(await teacher.eval(`!!(__kt.room && __kt.room.message)`)), '막힌 한마디는 아무 화면에도 가지 않는다');
+    await kidB.eval(`document.querySelector('#noteText').value = '다시 발견한 우정! 한 개 같이 나눠 먹자'; document.querySelector('#noteSend').click()`);
     await kidA.waitFor(`!document.querySelector('#shout').hidden`, 8000);
-    ok((await kidA.eval(`document.querySelector('#shoutText').textContent`)).includes('행복'), '선생님이 띄우면 모든 아이 화면에 한마디가 크게 뜬다');
+    ok(true, '낱말 사이에 우연히 생긴 글자(다시 발견, 한 개 같이)는 막지 않는다');
+    await kidA.eval(`document.querySelector('#shoutClose').click()`);
+    await click(teacher, '[data-act=remove]');
+    await kidA.sleep(300);
+    // 다시: 새 판으로 열고 진짜 한마디로 끝까지
+    await front(teacher);
+    await click(teacher, '#btnOpen');
+    await kidB.waitFor(`!document.querySelector('#guessForm').hidden`, 8000);
+    await front(kidB);
+    await type(kidB, ans);
+    await kidB.waitFor(`__kk.modal === 'write'`, 8000);
+    await kidA.waitFor(`__kk.modal === 'reveal'`, 8000);
+    await kidB.eval(`document.querySelector('#noteText').value = '우리 반 모두 오늘 하루도 즐겁게 보내자! 너희가 있어서 행복해.'; document.querySelector('#noteSend').click()`);
+    await kidA.waitFor(`!document.querySelector('#shout').hidden`, 8000);
+    ok((await kidA.eval(`document.querySelector('#shoutText').textContent`)).includes('행복'), '맞힌 아이가 보내면 선생님 검토 없이 바로 모든 아이 화면에 크게 뜬다');
+    await teacher.waitFor(`document.querySelector('.note-big') && document.querySelector('.note-big').textContent.includes('행복')`, 8000);
+    ok(true, '선생님 화면에도 떴다고 보인다');
+    await teacher.shot(join(OUT, 'kc-4-teacher.png'));
     await kidA.sleep(2200);
     await kidA.shot(join(OUT, 'kc-5-shout.png'));
+    await click(teacher, '[data-act=remove]');
+    await kidA.waitFor(`document.querySelector('#shout').hidden`, 8000);
+    ok(true, '선생님이 「화면에서 지우기」를 누르면 아이 화면에서 한마디가 사라진다');
 
     // ---- 다시 열어도 그대로 ----
     await kidA.eval('location.reload()');
     await kidA.waitFor(`window.__kk && __kk.P && __kk.modal === 'reveal'`, 10000);
-    ok(await kidA.eval(`document.querySelector('#shout').hidden`), '새로 고침 해도 이미 본 한마디는 다시 뜨지 않는다');
+    ok(await kidA.eval(`document.querySelector('#shout').hidden`), '새로 고침 해도 이미 본(또는 지운) 한마디는 다시 뜨지 않는다');
 
     // ---- 판 닫기 ----
     await click(teacher, '[data-act=closeRoom]');

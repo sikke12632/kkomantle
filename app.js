@@ -1,14 +1,15 @@
 // 우리반 꼬맨틀 — 아이 화면 (반이 함께 푸는 판)
 // 선생님이 판을 열면 모두 같은 비밀 낱말을 푼다. 한 명이 맞히면 모두에게 정답이 열리고,
-// 맞힌 아이는 반 친구들에게 따뜻한 한마디를 쓴다. 선생님이 고르면 모두의 화면에 크게 뜬다.
+// 맞힌 아이가 반 친구들에게 따뜻한 한마디를 쓰면 바로 모두의 화면에 크게 뜬다(금지어는 막는다).
 import {
   $, HOT_RANK, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
-  isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti,
+  isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
 } from './common.js';
 import { B } from './fb.js';
+import { BAN } from './ban.js';
 
 const ROOM = roomId();
-const S = { W: null, P: null, uid: '', num: load('num', 0), room: null, game: null, modal: '', sending: false };
+const S = { W: null, P: null, uid: '', num: load('num', 0), room: null, round: '', game: null, modal: '', sending: false };
 let syncTimer = 0;
 
 // ---------- 화면 고르기: num(번호 넣기) / wait(기다림) / play(푸는 중) / solved(누군가 맞힘) ----------
@@ -54,11 +55,17 @@ async function onRoom(room) {
       ended ? '내일 또 만나요!' : '조용히 기다려 주세요. 판이 열리면 이 화면이 저절로 바뀌어요.');
     return;
   }
-  if (!S.P || S.P.code !== room.code) {
+  // 판 한 번 = 문제 코드 + 연 시각. 선생님이 같은 낱말로 새로 열어도 새 판으로 시작한다.
+  const round = `${room.code}:${room.openedAt}`;
+  if (S.round !== round) {
     hero('문제를 펼치는 중이에요…', '');
-    S.P = await loadPuzzle(room.code);
-    S.game = load(`game:${ROOM}:${room.code}`, null) || { guesses: [], done: false, tries: 0 };
-    S.modal = '';
+    if (!S.P || S.P.code !== room.code) S.P = await loadPuzzle(room.code);
+    S.round = round;
+    S.game = load(`game:${ROOM}:${round}`, null) || { guesses: [], done: false, tries: 0 };
+    if (S.modal !== 'help') closeModal(); // 처음 온 아이의 '하는 방법'은 남겨 둔다
+    $('#shout').hidden = true;
+    $('#latest').hidden = true;
+    say('');
   }
   // 맞힌 낱말이 진짜 정답인지 이 화면에서 다시 확인한다(가짜 '맞힘'은 무시)
   if (room.state === 'solved' && isAnswer(S.P, room.answer)) {
@@ -143,11 +150,12 @@ function submit(raw) {
   g.tries++;
   g.guesses.push({ i, w, n: g.guesses.length + 1 });
   say(w !== raw.trim() ? `「${w}」${ro(w)} 알아들었어요.` : '', true);
-  save(`game:${ROOM}:${P.code}`, g);
+  save(`game:${ROOM}:${S.round}`, g);
   render(i);
   syncSoon();
 }
-function shake() { const f = $('#guessForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
+function shake() { shakeEl('#guessForm'); }
+function shakeEl(sel) { const f = $(sel); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
 
 // 내 가장 가까운 낱말 5개를 선생님 화면으로 보낸다(잠깐 모아서 한 번에)
 function syncSoon() {
@@ -164,7 +172,7 @@ async function win(w, i) {
   g.tries++;
   g.done = true;
   if (i >= 0) g.guesses.push({ i, w, n: g.guesses.length + 1 });
-  save(`game:${ROOM}:${S.P.code}`, g);
+  save(`game:${ROOM}:${S.round}`, g);
   $('#guess').disabled = $('#btnGo').disabled = true;
   try {
     await B.updateRoom(ROOM, { state: 'solved', answer: w, solvedNum: S.num, solvedUid: S.uid, solvedAt: Date.now() });
@@ -190,52 +198,57 @@ function showReveal(room) {
 }
 
 function showMine(room) {
-  const note = load('note:' + ROOM, null);
-  const rewrite = note && room.reject && room.reject > note.at;
-  if (room.message || (note && !rewrite)) {
-    const kind = room.message ? 'shown' : 'sent';
-    if (S.modal === kind) return;
-    openModal(kind, `<h2>${room.message ? '친구들 화면에 떴어요!' : '보냈어요!'}</h2>
-      <p class="sub">${room.message ? '선생님이 내 한마디를 친구들 화면에 띄웠어요. 고마워요!' : '선생님이 먼저 읽고 있어요. 곧 친구들 화면에 크게 떠요.'}</p>
+  if (room.message) {
+    if (S.modal === 'shown') return;
+    openModal('shown', `<h2>친구들 화면에 떴어요!</h2>
+      <p class="sub">내 한마디가 우리 반 모두의 화면에 크게 떴어요. 고마워요!</p>
       ${answerBlock(room)}`);
     return;
   }
-  const kind = rewrite ? 'rewrite' : 'write';
-  if (S.modal === kind) return;
-  openModal(kind, `<h2>${rewrite ? '한 번만 다시 써 줄래요?' : '축하해요! 비밀 낱말을 찾았어요!'}</h2>
-    <p class="sub">${rewrite ? '선생님이 조금 다르게 써 달라고 했어요.' : `${S.game.tries}번 만에 「${esc(room.answer)}」${josa(room.answer, '을', '를')} 찾았어요.`}</p>
+  if (S.modal === 'write') return;
+  openModal('write', `<h2>축하해요! 비밀 낱말을 찾았어요!</h2>
+    <p class="sub">${S.game.tries}번 만에 「${esc(room.answer)}」${josa(room.answer, '을', '를')} 찾았어요.</p>
     <div class="note-box">
       <label for="noteText"><b>우리 반 친구들에게 오늘 하루를 응원하는 따뜻한 한마디를 써 주세요.</b></label>
-      <p class="note-warn">이 말은 <b>선생님이 먼저 읽고</b>, 우리 반 친구들 <b>모두의 화면에 크게</b> 떠요.<br>
-      내 마음을 담아서, 친구들이 읽고 기분 좋아질 말로 써 주세요. 장난스러운 말이나 친구를 놀리는 말은 쓰지 않기로 해요.</p>
+      <p class="note-warn">보내기를 누르면 <b>바로 우리 반 친구들 모두의 화면에 크게</b> 떠요. 깜짝 선물처럼 몰래 써 보세요!<br>
+      친구들이 읽고 기분 좋아질 말로 써 주세요. 나쁜 말은 막혀 있어서 보낼 수 없어요.</p>
       <textarea id="noteText" maxlength="100" rows="3" placeholder="예: 오늘도 다 같이 힘내자! 너희가 있어서 학교 오는 게 즐거워."></textarea>
-      <div class="note-foot"><span id="noteLen">0 / 100</span><button id="noteSend" class="btn red small" type="button">선생님께 보내기</button></div>
+      <div class="note-foot"><span id="noteLen">0 / 100</span><button id="noteSend" class="btn red small" type="button">모두에게 보내기</button></div>
     </div>`, true);
   const ta = $('#noteText');
-  ta.addEventListener('input', () => { $('#noteLen').textContent = `${ta.value.length} / 100`; });
+  ta.addEventListener('input', () => { $('#noteLen').textContent = `${ta.value.length} / 100`; $('#noteLen').classList.remove('bad'); });
   $('#noteSend').addEventListener('click', sendNote);
   ta.focus();
 }
 
+function noteWarn(text) { const el = $('#noteLen'); el.textContent = text; el.classList.add('bad'); }
+
 async function sendNote() {
   const text = $('#noteText').value.replace(/\s+/g, ' ').trim();
-  if (text.length < 5) { $('#noteLen').textContent = '조금 더 길게 써 주세요'; return; }
+  if (text.length < 5) { noteWarn('조금 더 길게 써 주세요'); return; }
+  // 금지어가 있으면 보내지 않는다(어떤 낱말인지는 되풀이해 보여 주지 않는다). 서버 규칙도 한 번 더 막는다.
+  if (hasBadWord(text)) { noteWarn('앗! 쓸 수 없는 말이 들어 있어요. 친구들이 기분 좋아질 말로 바꿔 볼까요?'); shakeEl('.note-box'); return; }
   if (S.sending) return;
   S.sending = true;
   try {
-    const at = Date.now();
-    await B.setNote(ROOM, S.uid, { text, num: S.num, at });
-    save('note:' + ROOM, { at, text });
-    S.modal = '';
-    showMine(S.room);
+    await B.updateRoom(ROOM, { message: { text, at: Date.now() } });
   } catch {
-    $('#noteLen').textContent = '보내지 못했어요. 다시 눌러 주세요';
+    noteWarn('보내지 못했어요. 친구들이 기분 좋아질 말로 바꿔서 다시 보내 볼까요?');
   } finally { S.sending = false; }
+}
+
+// 한마디 금지어 검사: 소문자로 바꾸고 한글·영어 글자와 띄어쓰기만 남긴다(firestore.rules 의 okText 와 같은 방식)
+const BANS = JSON.parse(new TextDecoder().decode(b64bytes(BAN)));
+function hasBadWord(text) {
+  const t = text.normalize('NFC').toLowerCase().replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z ]/g, '');
+  const glued = t.replace(/ /g, '');
+  return BANS['붙여도'].some((w) => glued.includes(w)) || BANS['낱말안'].some((w) => t.includes(w));
 }
 
 // ---------- 오늘의 한마디 크게 띄우기 ----------
 function shout(m) {
   save('seenMsg:' + ROOM, m.at);
+  if (m.removed) { $('#shout').hidden = true; return; } // 선생님이 「화면에서 지우기」를 눌렀다
   $('#shoutText').textContent = m.text;
   const el = $('#shout');
   el.hidden = false;

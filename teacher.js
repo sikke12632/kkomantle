@@ -1,5 +1,5 @@
 // 우리반 꼬맨틀 — 선생님 화면
-// 판 열기·닫기, 정해진 시간마다 반이 찾은 가장 가까운 낱말 공개, 맞힌 아이의 한마디 확인하고 띄우기.
+// 판 열기·닫기, 정해진 시간마다 반이 찾은 가장 가까운 낱말 공개, 맞힌 아이의 한마디 보기(급하면 지우기).
 // 접근 규칙이 선생님 계정(TEACHER_EMAIL)만 판을 바꾸게 막는다.
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
@@ -9,7 +9,7 @@ import { B, TEACHER_EMAIL } from './fb.js';
 
 const ROOM = roomId();
 const TOP_N = 3;
-const S = { W: null, sched: null, room: null, players: [], notes: [], P: null, answer: '', pick: 0, peek: false, unsub: [], revealing: false, lastSolved: 0 };
+const S = { W: null, sched: null, room: null, players: [], notes: [], P: null, answer: '', pick: 0, peek: false, unsub: [], revealing: false, lastSolved: 0, seq: 0 };
 
 // ---------- 들어가기 ----------
 function showLogin(msg = '') { $('#login').hidden = false; $('#desk').hidden = true; $('#btnOut').hidden = true; $('#loginMsg').textContent = msg; }
@@ -24,7 +24,7 @@ async function enter(email) {
   S.unsub.push(
     B.onRoom(ROOM, onRoom, (e) => fail(e)),
     B.onPlayers(ROOM, (p) => { S.players = p; renderKids(); }, (e) => fail(e)),
-    B.onNotes(ROOM, (n) => { S.notes = n; renderSolved(); }, (e) => fail(e)),
+    B.onNotes(ROOM, (n) => { S.notes = n; }, (e) => fail(e)), // 예전 검토용 칸: 새 판을 열 때 지우려고만 본다
   );
 }
 function fail(e) { console.error(e); $('#stateBadge').textContent = '서버 연결 문제'; $('#stateBadge').className = 'badge bad'; }
@@ -43,9 +43,11 @@ function candidateCode() { // 0 = 오늘 순서표 낱말, 그 뒤는 순서표�
 
 async function onRoom(room) {
   S.room = room;
+  const seq = ++S.seq;
   const open = room && room.state === 'open';
   const solved = room && room.state === 'solved';
   await usePuzzle(room && room.code && (open || solved) ? room.code : candidateCode());
+  if (seq !== S.seq) return; // 기다리는 동안 더 새 판 소식이 왔으면 그것만 그린다
   $('#stateBadge').textContent = !room ? '아직 안 열었어요' : open ? '아이들이 푸는 중' : solved ? '맞혔어요!' : '닫혔어요';
   $('#stateBadge').className = 'badge ' + (open ? 'live' : solved ? 'win' : '');
   $('#btnOpen').textContent = room && room.state !== 'closed' ? '새 판으로 다시 열기' : '판 열기';
@@ -53,12 +55,24 @@ async function onRoom(room) {
   $('#btnOther').hidden = open || solved;
   if (room && room.revealEvery !== undefined) $('#revealEvery').value = String(room.revealEvery);
   // 아이가 올린 '맞힘'이 진짜 정답이 아니면 판을 다시 연다
-  if (solved && !isAnswer(S.P, room.answer)) {
+  if (solved && !(await solveIsReal(room))) {
+    console.warn('가짜 맞힘이라 판을 다시 엶', room.code, room.answer, room.solvedNum);
     await B.updateRoom(ROOM, { state: 'open', answer: null, solvedNum: null, solvedUid: null, solvedAt: null });
     return;
   }
+  if (seq !== S.seq) return;
   renderTop();
   renderSolved();
+}
+
+// 그 판의 문제로 확인하고, 아니면 2초 뒤 가장 새 판 소식으로 한 번 더 확인한다(잘못 다시 여는 일이 없게)
+async function solveIsReal(room) {
+  const P = S.P && S.P.code === room.code ? S.P : await loadPuzzle(room.code);
+  if (isAnswer(P, room.answer)) return true;
+  await new Promise((r) => setTimeout(r, 2000));
+  const cur = S.room;
+  if (!cur || cur.state !== 'solved' || cur.solvedAt !== room.solvedAt) return true;
+  return isAnswer(P, cur.answer);
 }
 
 function renderWord() {
@@ -74,7 +88,7 @@ async function openRoom() {
   const now = Date.now();
   await B.setRoom(ROOM, {
     state: 'open', code: S.P.code, openedAt: now, top: [], topAt: now, revealEvery: +$('#revealEvery').value,
-    answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, reject: 0,
+    answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null,
   });
 }
 async function closeRoom() {
@@ -124,27 +138,25 @@ function renderSolved() {
   if (card.hidden) return;
   if (S.lastSolved !== r.solvedAt) { S.lastSolved = r.solvedAt; confetti(60); }
   $('#solvedHead').innerHTML = `🎉 <b>${r.solvedNum}번</b>이 비밀 낱말 「${esc(r.answer)}」${josa(r.answer, '을', '를')} 찾았어요! (시작하고 ${mmss(r.solvedAt - r.openedAt)})`;
-  const note = S.notes.find((n) => n.uid === r.solvedUid);
   let html;
-  if (r.message) {
-    html = `<p class="note-big">“${esc(r.message.text)}”</p><p class="sub left">아이들 화면에 띄웠어요.</p>
-      <div class="t-btns"><button class="btn dark small" data-act="again">한 번 더 띄우기</button><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
-  } else if (note && !(r.reject && r.reject > note.at)) {
-    html = `<p class="sub left">${note.num}번이 보낸 한마디예요. 읽어 보고 괜찮으면 띄워 주세요.</p>
-      <p class="note-big">“${esc(note.text)}”</p>
-      <div class="t-btns"><button class="btn red" data-act="show">모두에게 크게 띄우기</button><button class="btn ghost small" data-act="reject">다시 쓰게 하기</button></div>`;
+  if (r.message && r.message.removed) {
+    html = `<p class="sub left">한마디를 아이들 화면에서 지웠어요.</p>
+      <div class="t-btns"><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
+  } else if (r.message) {
+    html = `<p class="sub left">${r.solvedNum}번의 한마디가 아이들 화면에 떴어요.</p><p class="note-big">“${esc(r.message.text)}”</p>
+      <div class="t-btns"><button class="btn dark small" data-act="again">한 번 더 띄우기</button>
+      <button class="btn ghost small" data-act="remove">화면에서 지우기</button><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
   } else {
-    html = `<p class="sub left">${r.solvedNum}번이 친구들에게 보낼 한마디를 쓰고 있어요…</p>`;
+    html = `<p class="sub left">${r.solvedNum}번이 친구들에게 보낼 한마디를 쓰고 있어요… 다 쓰면 바로 모두의 화면에 떠요.</p>`;
   }
   $('#noteArea').innerHTML = html;
 }
 
+// 한마디는 선생님 검토 없이 바로 뜬다(담임 결정). 선생님은 다시 띄우거나, 급할 때 지울 수만 있다.
 async function noteAct(act) {
   const r = S.room;
-  const note = S.notes.find((n) => n.uid === r.solvedUid);
-  if (act === 'show' && note) await B.updateRoom(ROOM, { message: { text: note.text, at: Date.now() } });
   if (act === 'again' && r.message) await B.updateRoom(ROOM, { message: { text: r.message.text, at: Date.now() } });
-  if (act === 'reject') { if (note) await B.deleteNote(ROOM, note.uid); await B.updateRoom(ROOM, { reject: Date.now() }); }
+  if (act === 'remove' && confirm('아이들 화면에서 한마디를 지울까요?')) await B.updateRoom(ROOM, { message: { text: '', at: Date.now(), removed: true } });
   if (act === 'closeRoom') await closeRoom();
 }
 

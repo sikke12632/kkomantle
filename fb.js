@@ -3,9 +3,9 @@
 //
 // Firestore 모양 (규칙: 작업 저장소 firestore.rules)
 //   kk_rooms/{판}                state('open'|'solved'|'closed'), code, openedAt, top[{w,r}], topAt, revealEvery,
-//                                answer, solvedNum, solvedUid, solvedAt, message{text,at}, reject
+//                                answer, solvedNum, solvedUid, solvedAt, message{text,at,removed?}
 //   kk_rooms/{판}/players/{uid}  num(출석 번호), best[{w,r}] 가장 가까운 낱말 5개, count, at
-//   kk_rooms/{판}/notes/{uid}    맞힌 아이의 한마디 text, num, at (선생님만 읽는다)
+//   (맞힌 아이의 한마디는 판 문서의 message 에 바로 쓴다. 금지어는 아이 화면과 규칙이 막는다)
 
 const CONFIG = {
   apiKey: 'AIzaSyCrsEzDt0fzQl-FIP2wB5cfQP2P7-Q2MgY',
