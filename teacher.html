@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>꼬맨틀 선생님 화면</title>
+<link rel="stylesheet" href="app.css?v=2">
+</head>
+<body class="teacher">
+<div id="sky" aria-hidden="true"><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i></div>
+
+<header id="top">
+  <div class="brand"><span class="seal">꼬</span><span class="name">우리반 꼬맨틀</span><span class="chip">선생님 화면</span></div>
+  <div class="topbtns"><button id="btnOut" class="btn ghost small" hidden>나가기</button></div>
+</header>
+
+<main id="main" class="wide">
+  <section id="login" class="card pad center" hidden>
+    <h2 class="sec-title">선생님 구글 계정으로 들어가 주세요</h2>
+    <p class="sub">판을 열고 닫거나 아이들의 한마디를 띄우는 일은 선생님 계정으로만 할 수 있어요.</p>
+    <button id="btnLogin" class="btn red">구글 계정으로 들어가기</button>
+    <p id="loginMsg" class="warn"></p>
+  </section>
+
+  <div id="desk" hidden>
+    <section class="card pad">
+      <div class="t-row">
+        <div>
+          <div class="t-label">오늘 판 <span id="roomName"></span></div>
+          <div class="t-state"><span id="stateBadge" class="badge"></span><span id="tElapsed" class="elapsed"></span></div>
+        </div>
+        <div class="t-btns">
+          <button id="btnOpen" class="btn red">판 열기</button>
+          <button id="btnClose" class="btn dark">판 닫기</button>
+        </div>
+      </div>
+      <div class="t-row t-word">
+        <div>비밀 낱말: <b id="answerWord" class="secret">●●●</b>
+          <button id="btnPeek" class="btn ghost small" type="button">보기</button>
+          <button id="btnOther" class="btn ghost small" type="button">다른 낱말로</button>
+        </div>
+        <div class="t-kidlink">아이들 주소: <a id="kidLink" target="_blank" rel="noopener"></a></div>
+      </div>
+    </section>
+
+    <section class="card pad">
+      <div class="t-row">
+        <div>
+          <div class="t-label">우리 반이 찾은 가장 가까운 낱말 공개</div>
+          <div id="revealNext" class="sub left"></div>
+        </div>
+        <div class="t-btns">
+          <select id="revealEvery" aria-label="공개 간격">
+            <option value="60">1분마다</option>
+            <option value="90" selected>1분 30초마다</option>
+            <option value="120">2분마다</option>
+            <option value="0">공개 안 함</option>
+          </select>
+          <button id="btnReveal" class="btn dark small">지금 공개</button>
+        </div>
+      </div>
+      <div id="tTop" class="ct-words"></div>
+      <p class="sub left small">이 화면이 켜져 있어야 정해진 시간마다 공개돼요. 몇 번째로 가까운지가 같이 보이고, 아이들 이름이나 번호는 보이지 않아요.</p>
+    </section>
+
+    <section id="solvedCard" class="card pad" hidden>
+      <div class="t-label" id="solvedHead"></div>
+      <div id="noteArea"></div>
+    </section>
+
+    <section class="card pad">
+      <div class="t-row"><div class="t-label">아이들 <span id="kidCount"></span></div><div id="dupWarn" class="warn"></div></div>
+      <table class="t-table"><thead><tr><th>번호</th><th>쓴 낱말</th><th>가장 가까운 낱말</th></tr></thead><tbody id="kids"></tbody></table>
+    </section>
+  </div>
+</main>
+<div id="confetti" aria-hidden="true"></div>
+<script type="module" src="teacher.js?v=2"></script>
+</body>
+</html>

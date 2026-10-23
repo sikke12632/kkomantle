@@ -49,6 +49,11 @@ export async function launch({ headless = true, width = 1366, height = 768 } = {
     pending.set(i, { res, rej });
     ws.send(JSON.stringify({ id: i, method, params, sessionId }));
   });
+  const logs = [];
+  // 탭 하나를 연다. 첫 탭이 t 이고, t.newPage() 로 탭을 더 열 수 있다(선생님 화면 + 아이 화면 여럿 시험)
+  let pages = 0;
+  async function openPage() {
+  const tag = pages++ ? `[탭${pages}] ` : '';
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   const s = (m, p) => send(m, p, sessionId);
@@ -56,18 +61,17 @@ export async function launch({ headless = true, width = 1366, height = 768 } = {
   await s('Runtime.enable');
   await s('Network.enable');
   await s('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-  const logs = [];
   const net = new Map();
   listeners.push((m) => {
     if (m.sessionId !== sessionId) return;
-    if (m.method === 'Page.javascriptDialogOpening') { logs.push('[dialog] ' + m.params.message); send('Page.handleJavaScriptDialog', { accept: true }, sessionId); }
-    if (m.method === 'Runtime.consoleAPICalled') logs.push(`[${m.params.type}] ` + m.params.args.map((a) => a.value ?? a.description).join(' '));
-    if (m.method === 'Runtime.exceptionThrown') logs.push('[exception] ' + JSON.stringify(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text));
+    if (m.method === 'Page.javascriptDialogOpening') { logs.push(tag + '[dialog] ' + m.params.message); send('Page.handleJavaScriptDialog', { accept: true }, sessionId); }
+    if (m.method === 'Runtime.consoleAPICalled') logs.push(tag + `[${m.params.type}] ` + m.params.args.map((a) => a.value ?? a.description).join(' '));
+    if (m.method === 'Runtime.exceptionThrown') logs.push(tag + '[exception] ' + JSON.stringify(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text));
     if (m.method === 'Network.responseReceived') net.set(m.params.requestId, { url: m.params.response.url, status: m.params.response.status });
     if (m.method === 'Network.loadingFinished' && net.has(m.params.requestId)) net.get(m.params.requestId).bytes = m.params.encodedDataLength;
   });
   const t = {
-    send: s, logs, net, sleep, listeners,
+    send: s, logs, net, sleep, listeners, newPage: openPage,
     async goto(url) { await s('Page.navigate', { url }); await sleep(500); },
     async eval(expr) {
       const r = await s('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
@@ -101,6 +105,8 @@ export async function launch({ headless = true, width = 1366, height = 768 } = {
     },
   };
   return t;
+  }
+  return openPage();
 }
 
 if (process.argv[2]) {
