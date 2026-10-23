@@ -43,6 +43,8 @@ function setNumber(n) {
 
 // ---------- 판 따라가기 ----------
 async function onRoom(room) {
+  // 서버가 아직 확인하지 않은 내 쓰기는 그리지 않는다(금지어로 거절된 한마디가 내 화면에 잠깐 뜨지 않게)
+  if (room && room._pending) return;
   S.room = room;
   if (!S.num) return askNumber();
   $('#dayChip').textContent = `${korDate(kstToday())} 반 판`;

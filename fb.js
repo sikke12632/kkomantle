@@ -35,7 +35,8 @@ async function firebaseBackend() {
     async signInTeacher() { return (await A.signInWithPopup(auth, new A.GoogleAuthProvider())).user.email; },
     onAuth(cb) { return A.onAuthStateChanged(auth, (u) => cb(u && !u.isAnonymous ? u.email : null)); },
     signOut() { return A.signOut(auth); },
-    onRoom(id, cb, onErr) { return F.onSnapshot(room(id), (s) => cb(s.exists() ? s.data() : null), onErr); },
+    // _pending: 이 기기가 보낸 것이 아직 서버에서 확인되지 않은 상태(서버가 거절하면 되돌아간다)
+    onRoom(id, cb, onErr) { return F.onSnapshot(room(id), (s) => cb(s.exists() ? { ...s.data(), _pending: s.metadata.hasPendingWrites } : null), onErr); },
     setRoom(id, data) { return F.setDoc(room(id), data); },
     updateRoom(id, patch) { return F.updateDoc(room(id), patch); },
     setPlayer(id, uid, data) { return F.setDoc(F.doc(sub(id, 'players'), uid), data); },
