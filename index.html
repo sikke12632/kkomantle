@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리반 꼬맨틀</title>
+<!-- 배포할 때마다 ?v= 숫자를 올린다(캐시). app.js 안의 VER도 같이 올린다 -->
+<link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+<div id="sky" aria-hidden="true"><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i></div>
+
+<header id="top">
+  <div class="brand"><span class="seal">꼬</span><span class="name">우리반 꼬맨틀</span><span id="dayChip" class="chip"></span></div>
+  <div class="topbtns">
+    <button id="btnPast" class="ibtn" aria-label="지난 문제" title="지난 문제">
+      <svg viewBox="0 0 24 24"><path d="M6 3h2v2h8V3h2v2h1.5A1.5 1.5 0 0 1 21 6.5v13a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-13A1.5 1.5 0 0 1 4.5 5H6zm-1 6v10h14V9zm2 2h3v3H7z"/></svg>
+    </button>
+    <button id="btnStats" class="ibtn" aria-label="내 기록" title="내 기록">
+      <svg viewBox="0 0 24 24"><path d="M4 20V10h3.5v10zm6.25 0V4h3.5v16zM16.5 20v-7H20v7z"/></svg>
+    </button>
+    <button id="btnHelp" class="ibtn" aria-label="하는 방법" title="하는 방법">
+      <svg viewBox="0 0 24 24"><path d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19zm1.2 15.3h-2.4v-2.3h2.4zm2-7.4c-.3.8-1 1.3-1.6 1.8-.6.4-.9.7-.9 1.5v.4h-2.3v-.6c0-1.4.6-2 1.4-2.6.6-.4 1.1-.8 1.1-1.5 0-.8-.6-1.3-1.5-1.3-1 0-1.6.6-1.7 1.6L7.4 9c.2-2.1 1.9-3.4 4.2-3.4 2.4 0 4 1.3 4 3.3 0 .5-.1 1-.4 1.5z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+  <section id="hero" class="card">
+    <div class="lantern-wrap">
+      <svg id="lantern" viewBox="0 0 80 110" aria-hidden="true">
+        <defs>
+          <radialGradient id="glowG" cx="50%" cy="55%" r="50%"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#ffc861"/><stop offset="1" stop-color="#e8743b"/></radialGradient>
+        </defs>
+        <path d="M40 2v10" stroke="#5a4636" stroke-width="3" stroke-linecap="round"/>
+        <rect x="26" y="10" width="28" height="7" rx="2" fill="#5a4636"/>
+        <path id="lanternBody" d="M18 40C18 24 28 17 40 17s22 7 22 23v28c0 16-10 23-22 23S18 84 18 68z" fill="url(#glowG)"/>
+        <path d="M30 18c-5 8-6 18-6 36s1 28 6 36M50 18c5 8 6 18 6 36s-1 28-6 36M40 17v74" stroke="#b9572b" stroke-width="1.6" fill="none" opacity=".55"/>
+        <rect x="26" y="90" width="28" height="7" rx="2" fill="#5a4636"/>
+        <path d="M34 97v8M40 97v11M46 97v8" stroke="#b23b30" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <div id="glow" aria-hidden="true"></div>
+    </div>
+    <div class="hero-text">
+      <h1 id="heroTitle">오늘의 비밀 낱말을 찾아라!</h1>
+      <p id="heroSub">아무 낱말이나 써 보세요. 비밀 낱말과 뜻이 가까울수록 점수가 높고 등불이 밝아져요.</p>
+      <div id="meter" aria-hidden="true"><div id="meterFill"></div><span class="m-cold">차가워요</span><span class="m-hot">뜨거워요</span></div>
+      <p id="scale"></p>
+    </div>
+  </section>
+
+  <form id="guessForm" class="card" autocomplete="off">
+    <input id="guess" type="text" inputmode="text" maxlength="20" placeholder="낱말을 써 보세요" aria-label="낱말 쓰기" enterkeyhint="done">
+    <button id="btnGo" type="submit" class="btn red">확인</button>
+  </form>
+  <p id="msg" role="status" aria-live="polite"></p>
+
+  <section id="latest" class="card" hidden></section>
+
+  <section id="listCard" class="card" hidden>
+    <div class="list-head"><span>지금까지 쓴 낱말</span><span id="count"></span></div>
+    <table id="list"><thead><tr><th class="c-n">#</th><th class="c-w">낱말</th><th class="c-s">점수</th><th class="c-r">가까움</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="tools" class="tools">
+    <button id="btnHint" class="btn dark small" type="button">힌트: 100번째로 가까운 낱말 보기</button>
+    <button id="btnGiveUp" class="btn ghost small" type="button">그만하고 정답 보기</button>
+  </section>
+
+  <footer id="foot">
+    낱말 뜻 자료: <a href="https://fasttext.cc/docs/en/crawl-vectors.html" target="_blank" rel="noopener">fastText</a> (CC BY-SA 3.0) ·
+    낱말 목록·뜻풀이: <a href="https://krdict.korean.go.kr" target="_blank" rel="noopener">한국어기초사전</a>,
+    <a href="https://github.com/spellcheck-ko/hunspell-dict-ko" target="_blank" rel="noopener">hunspell-dict-ko</a> (CC BY-SA) ·
+    <a href="CREDITS.md" target="_blank">만든 사람들</a>
+  </footer>
+</main>
+
+<div id="modal" hidden>
+  <div class="sheet card" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="close ibtn" id="mClose" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+    <div id="mBody"></div>
+  </div>
+</div>
+<div id="confetti" aria-hidden="true"></div>
+
+<script src="app.js?v=1"></script>
+</body>
+</html>
