@@ -44,7 +44,7 @@ export default async function (teacher) {
     // ---- 아이 둘 (판이 열리기 전) ----
     const kidA = await teacher.newPage();
     const kidB = await teacher.newPage();
-    for (const [kid, num] of [[kidA, 7], [kidB, 12]]) {
+    for (const [kid, num] of [[kidA, 7], [kidB, 52]]) {
       await kid.goto(base + q);
       await kid.waitFor(`window.__kk && __kk.W && __kk.uid`);
       await kid.sleep(300);
@@ -57,6 +57,7 @@ export default async function (teacher) {
     }
     await kidA.shot(join(OUT, 'kc-1-wait.png'));
 
+    ok(await kidA.eval(`(() => { const n = [...document.querySelectorAll('[data-n]')].map(b => +b.dataset.n); return n.length === 34 && n[0] === 1 && n[17] === 18 && n[18] === 51 && n[33] === 66; })()`), '출석 번호는 1~18번, 51~66번');
     // ---- 판 열기 ----
     await front(teacher);
     await teacher.eval(`document.querySelector('#revealEvery').value = '60'`);
@@ -90,7 +91,7 @@ export default async function (teacher) {
     await front(teacher);
     ok(await teacher.waitFor(`JSON.parse(localStorage.getItem('kkmock:rooms/${ROOM}')).state === 'open'`, 10000).catch(() => false), '가짜 정답으로 맞혔다고 올리면 선생님 화면이 판을 다시 연다');
 
-    // ---- 12번이 맞힌다 ----
+    // ---- 52번이 맞힌다 ----
     await front(kidB);
     const ans = await kidB.eval(FIND_ANSWER);
     await type(kidB, ans + '를');
@@ -98,7 +99,7 @@ export default async function (teacher) {
     ok(true, '맞힌 아이에게 축하와 한마디 쓰기 창이 뜬다');
     await kidA.waitFor(`__kk.modal === 'reveal'`, 8000);
     ok(await kidA.eval(`document.querySelector('#mBody .answer').textContent`) === ans, '다른 아이 화면에도 정답이 열린다');
-    ok(await kidA.eval(`document.querySelector('#mBody h2').textContent.includes('12번')`), '누가 찾았는지(번호) 보인다');
+    ok(await kidA.eval(`document.querySelector('#mBody h2').textContent.includes('52번')`), '누가 찾았는지(번호) 보인다');
     ok(await kidA.eval(`document.querySelector('#guessForm').hidden`), '맞히면 다른 아이도 더 쓸 수 없다');
     await kidB.shot(join(OUT, 'kc-3-note.png'));
 

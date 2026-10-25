@@ -2,14 +2,14 @@
 // 선생님이 판을 열면 모두 같은 비밀 낱말을 푼다. 한 명이 맞히면 모두에게 정답이 열리고,
 // 맞힌 아이가 반 친구들에게 따뜻한 한마디를 쓰면 바로 모두의 화면에 크게 뜬다(금지어는 막는다).
 import {
-  $, HOT_RANK, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
+  $, HOT_RANK, NUM_GROUPS, isNum, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
   isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
 } from './common.js';
 import { B } from './fb.js';
 import { BAN } from './ban.js';
 
 const ROOM = roomId();
-const S = { W: null, P: null, uid: '', num: load('num', 0), room: null, round: '', game: null, modal: '', sending: false };
+const S = { W: null, P: null, uid: '', num: isNum(load('num', 0)) ? load('num', 0) : 0, room: null, round: '', game: null, modal: '', sending: false };
 let syncTimer = 0;
 
 // ---------- 화면 고르기: num(번호 넣기) / wait(기다림) / play(푸는 중) / solved(누군가 맞힘) ----------
@@ -30,8 +30,9 @@ function say(text, ok = false) { const m = $('#msg'); m.textContent = text; m.cl
 function askNumber() {
   view('num');
   hero('반갑습니다!', '꼬맨틀을 하려면 먼저 내 출석 번호를 눌러 주세요.');
-  $('#numGrid').innerHTML = Array.from({ length: 40 }, (_, k) =>
-    `<button type="button" class="numkey${S.num === k + 1 ? ' on' : ''}" data-n="${k + 1}">${k + 1}</button>`).join('');
+  $('#numGrid').innerHTML = NUM_GROUPS.map(([a, b]) => Array.from({ length: b - a + 1 }, (_, k) => a + k)
+    .map((n) => `<button type="button" class="numkey${S.num === n ? ' on' : ''}" data-n="${n}">${n}</button>`).join(''))
+    .join('<div class="numgap"></div>');
 }
 function setNumber(n) {
   S.num = n;

@@ -6,6 +6,9 @@
 export const VER = 2; // index.html·teacher.html 의 ?v= 와 같이 올린다
 export const HOT_RANK = 1000; // 이 순위 안이면 "가까워요" 표시
 export const $ = (s) => document.querySelector(s);
+// 우리 반 출석 번호: 1~15번, 51~63번 (넉넉하게 3명씩 더). firestore.rules 의 okNum 과 같이 고친다.
+export const NUM_GROUPS = [[1, 18], [51, 66]];
+export const isNum = (n) => NUM_GROUPS.some(([a, b]) => n >= a && n <= b);
 
 // ---------- 작은 도우미 ----------
 export function hash(s) { // make_puzzles.py 의 fnv1a 와 같은 계산
