@@ -4,7 +4,7 @@
 점수는 미리 계산한 파일(GitHub Pages)로 각자 기기에서 내고, 서버는 판 상태·반이 찾은 낱말·한마디만 주고받습니다.
 
 - 시험: `node tools/cdp.mjs tools/class-test.mjs` (가짜 서버로 선생님 탭 + 아이 탭 둘. 이 PC는 앞에 `SOFTGL=1`)
-- 반 판 서버: Firebase Firestore(프로젝트 mathgame2-d835d). 주소에 `?mock`을 붙이면 브라우저 안 가짜 서버로 돈다.
+- 반 판 서버: Firebase Firestore(프로젝트 mathgame2-d835d). 주소에 `?mock`을 붙이면 브라우저 안 가짜 서버로 돈다. 진짜 서버에서 따로 시험하려면 `?test&room=이름`(그냥 `?room=` 은 무시하고 오늘 판으로 간다).
 - 선생님 화면: `teacher.html` (선생님 구글 계정으로만 판을 열고 닫는다)
 - 글꼴 다시 만들기: `python tools/subset-fonts.py <원본 TTF 폴더>`
 - 배포할 때마다 `index.html`·`teacher.html`의 `?v=`, `app.js`·`teacher.js`의 import `?v=`, `common.js`의 `VER`를 모두 같은 숫자로 올린다.

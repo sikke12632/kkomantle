@@ -4,8 +4,8 @@
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
   isAnswer, findAnswer, isShown, tier, confetti, josa,
-} from './common.js?v=3';
-import { B, TEACHER_EMAIL } from './fb.js?v=3';
+} from './common.js?v=4';
+import { B, TEACHER_EMAIL } from './fb.js?v=4';
 
 const ROOM = roomId();
 const TOP_N = 3;
@@ -178,7 +178,7 @@ async function start() {
   $('#roomName').textContent = ROOM === kstToday() ? `(${korDate(ROOM)})` : `(${ROOM})`;
   const kid = new URL('./', location.href);
   if (B.mock) kid.search = '?mock';
-  if (ROOM !== kstToday()) kid.searchParams.set('room', ROOM);
+  if (ROOM !== kstToday()) { if (!B.mock) kid.searchParams.set('test', ''); kid.searchParams.set('room', ROOM); }
   $('#kidLink').href = $('#kidLink').textContent = kid.href;
   [S.W, S.sched] = await Promise.all([loadWords(), getJSON('data/schedule.json')]);
   await usePuzzle(codeForDate(S.sched, kstToday()));

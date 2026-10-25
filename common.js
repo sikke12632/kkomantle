@@ -3,7 +3,7 @@
 // data/schedule.json 날짜 → 문제 코드 (선생님이 판을 열 때 오늘 문제로 쓴다)
 // data/p/<코드>.json 문제 하나: 낱말마다 점수, 정답 확인 해시, 뜻풀이
 
-export const VER = 3; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
+export const VER = 4; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
 export const HOT_RANK = 1000; // 이 순위 안이면 "가까워요" 표시
 export const $ = (s) => document.querySelector(s);
 // 우리 반 출석 번호: 1~15번, 51~63번 (넉넉하게 3명씩 더). firestore.rules 의 okNum 과 같이 고친다.
@@ -34,10 +34,12 @@ export function dayDiff(a, b) { return Math.round((new Date(b + 'T00:00:00Z') - 
 export function korDate(iso) { const [, m, d] = iso.split('-').map(Number); return `${m}월 ${d}일`; }
 export function mmss(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
-// 판 이름: 오늘 날짜. 시험할 때는 ?room=이름 으로 따로 연다.
+// 판 이름: 오늘 날짜. 시험할 때만 ?test&room=이름 (가짜 서버는 ?mock&room=이름) 으로 따로 연다.
+// ?room= 만 붙은 주소는 무시한다 — 아이들이 연습 판 주소를 복사해 들어가 지난 판을 보는 일이 있었다(2026-10-26).
 export function roomId() {
-  const r = new URLSearchParams(location.search).get('room');
-  return r && /^[\w-]{1,40}$/.test(r) ? r : kstToday();
+  const q = new URLSearchParams(location.search);
+  const r = q.get('room');
+  return (q.has('test') || q.has('mock')) && r && /^[\w-]{1,40}$/.test(r) ? r : kstToday();
 }
 
 export async function getJSON(url) {
