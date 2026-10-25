@@ -7,6 +7,6 @@
 - 반 판 서버: Firebase Firestore(프로젝트 mathgame2-d835d). 주소에 `?mock`을 붙이면 브라우저 안 가짜 서버로 돈다.
 - 선생님 화면: `teacher.html` (선생님 구글 계정으로만 판을 열고 닫는다)
 - 글꼴 다시 만들기: `python tools/subset-fonts.py <원본 TTF 폴더>`
-- 배포할 때마다 `index.html`·`teacher.html`의 `?v=` 숫자와 `common.js`의 `VER`를 올린다.
+- 배포할 때마다 `index.html`·`teacher.html`의 `?v=`, `app.js`·`teacher.js`의 import `?v=`, `common.js`의 `VER`를 모두 같은 숫자로 올린다.
 
 자료 출처와 라이선스는 [CREDITS.md](CREDITS.md).
