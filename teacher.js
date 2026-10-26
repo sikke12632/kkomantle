@@ -36,9 +36,23 @@ async function usePuzzle(code) {
   S.answer = findAnswer(S.P, S.W);
   renderWord();
 }
-function candidateCode() { // 0 = 오늘 순서표 낱말, 그 뒤는 순서표에서 멀리 떨어진 낱말
+// 오늘 이미 쓴 낱말(판 문서의 used + 지금 낱말). 하루에 여러 판을 해도 같은 낱말이 다시 나오지 않게.
+function usedToday() {
+  const u = new Set((S.room && S.room.used) || []);
+  if (S.room && S.room.code) u.add(S.room.code);
+  return u;
+}
+// 다음 낱말: 오늘 순서표 낱말부터, 그 뒤는 순서표에서 멀리 떨어진 낱말. 오늘 쓴 것은 건너뛴다.
+// S.pick 은 「다른 낱말로」를 누른 횟수만큼 더 건너뛴다.
+function candidateCode() {
   const n = Math.max(0, Math.round((new Date(kstToday()) - new Date(S.sched.start)) / 864e5));
-  return S.sched.days[(n + S.pick * 97) % S.sched.days.length];
+  const L = S.sched.days.length, used = usedToday();
+  let skip = S.pick;
+  for (let k = 0; k < L; k++) {
+    const c = S.sched.days[(n + k * 97) % L];
+    if (!used.has(c) && skip-- === 0) return c;
+  }
+  return S.sched.days[n % L];
 }
 
 async function onRoom(room) {
@@ -50,7 +64,7 @@ async function onRoom(room) {
   if (seq !== S.seq) return; // 기다리는 동안 더 새 판 소식이 왔으면 그것만 그린다
   $('#stateBadge').textContent = !room ? '아직 안 열었어요' : open ? '아이들이 푸는 중' : solved ? '맞혔어요!' : '닫혔어요';
   $('#stateBadge').className = 'badge ' + (open ? 'live' : solved ? 'win' : '');
-  $('#btnOpen').textContent = room && room.state !== 'closed' ? '새 판으로 다시 열기' : '판 열기';
+  $('#btnOpen').textContent = room && room.state !== 'closed' ? '새 낱말로 다시 시작' : '판 열기';
   $('#btnClose').disabled = !room || room.state === 'closed';
   $('#btnOther').hidden = open || solved;
   if (room && room.revealEvery !== undefined) $('#revealEvery').value = String(room.revealEvery);
@@ -81,15 +95,22 @@ function renderWord() {
   $('#btnPeek').textContent = S.peek ? '가리기' : '보기';
 }
 
+// 판 열기. 판이 열려 있거나 누가 맞힌 뒤라면 「새 낱말로 다시 시작」: 오늘 안 쓴 새 낱말로 바로 새 판을 연다.
 async function openRoom() {
   const r = S.room;
-  if (r && r.state !== 'closed' && !confirm('지금 판을 지우고 새로 열까요? 아이들이 쓴 기록이 사라져요.')) return;
+  const again = r && r.state !== 'closed';
+  if (r && r.state === 'open' && !confirm('아직 아무도 못 맞혔어요. 새 낱말로 바꿔서 다시 시작할까요? 지금 판의 기록은 사라져요.')) return;
+  if (again) S.pick = 0;
+  // 닫자마자 바로 열 때 다음 낱말이 아직 안 불러와졌어도, 오늘 쓴 낱말은 다시 열지 않는다
+  if (again || usedToday().has(S.P.code)) await usePuzzle(candidateCode());
+  const used = [...usedToday(), S.P.code];
   if (r && S.players.length + S.notes.length) await B.clearRoom(ROOM);
   const now = Date.now();
   await B.setRoom(ROOM, {
     state: 'open', code: S.P.code, openedAt: now, top: [], topAt: now, revealEvery: +$('#revealEvery').value,
-    answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null,
+    answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [...new Set(used)],
   });
+  S.pick = 0;
 }
 async function closeRoom() {
   if (!confirm('오늘 판을 닫을까요? 아이들 화면에 "오늘 판은 끝났어요"가 떠요.')) return;
@@ -141,13 +162,15 @@ function renderSolved() {
   let html;
   if (r.message && r.message.removed) {
     html = `<p class="sub left">한마디를 아이들 화면에서 지웠어요.</p>
-      <div class="t-btns"><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
+      <div class="t-btns again"><button class="btn red" data-act="newRound">새 낱말로 한 판 더!</button><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
   } else if (r.message) {
     html = `<p class="sub left">${r.solvedNum}번의 한마디가 아이들 화면에 떴어요.</p><p class="note-big">“${esc(r.message.text)}”</p>
       <div class="t-btns"><button class="btn dark small" data-act="again">한 번 더 띄우기</button>
-      <button class="btn ghost small" data-act="remove">화면에서 지우기</button><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
+      <button class="btn ghost small" data-act="remove">화면에서 지우기</button></div>
+      <div class="t-btns again"><button class="btn red" data-act="newRound">새 낱말로 한 판 더!</button><button class="btn dark small" data-act="closeRoom">판 닫기</button></div>`;
   } else {
-    html = `<p class="sub left">${r.solvedNum}번이 친구들에게 보낼 한마디를 쓰고 있어요… 다 쓰면 바로 모두의 화면에 떠요.</p>`;
+    html = `<p class="sub left">${r.solvedNum}번이 친구들에게 보낼 한마디를 쓰고 있어요… 다 쓰면 바로 모두의 화면에 떠요.</p>
+      <div class="t-btns again"><button class="btn dark small" data-act="newRound">기다리지 않고 새 낱말로 한 판 더</button></div>`;
   }
   $('#noteArea').innerHTML = html;
 }
@@ -158,6 +181,7 @@ async function noteAct(act) {
   if (act === 'again' && r.message) await B.updateRoom(ROOM, { message: { text: r.message.text, at: Date.now() } });
   if (act === 'remove' && confirm('아이들 화면에서 한마디를 지울까요?')) await B.updateRoom(ROOM, { message: { text: '', at: Date.now(), removed: true } });
   if (act === 'closeRoom') await closeRoom();
+  if (act === 'newRound') await openRoom();
 }
 
 // ---------- 아이들 ----------

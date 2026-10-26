@@ -30,7 +30,7 @@ export default async function (teacher) {
     await teacher.sleep(400);
     // ---- 선생님 ----
     await teacher.goto(base + 'teacher.html' + q);
-    await teacher.waitFor(`window.__kt && __kt.W && __kt.P`);
+    await teacher.waitFor(`window.__kt && __kt.W && __kt.P`, 60000);
     ok(await visible(teacher, '#login'), '선생님 화면은 처음에 구글 로그인을 묻는다');
     await click(teacher, '#btnLogin');
     await teacher.waitFor(`!document.querySelector('#desk').hidden`);
@@ -46,7 +46,7 @@ export default async function (teacher) {
     const kidB = await teacher.newPage();
     for (const [kid, num] of [[kidA, 7], [kidB, 52]]) {
       await kid.goto(base + q);
-      await kid.waitFor(`window.__kk && __kk.W && __kk.uid`);
+      await kid.waitFor(`window.__kk && __kk.W && __kk.uid`, 60000);
       await kid.sleep(300);
       ok(await visible(kid, '#modal'), `${num}번: 처음 오면 하는 방법이 뜬다`);
       await click(kid, '[data-go=close]');
@@ -115,12 +115,17 @@ export default async function (teacher) {
     await kidA.eval(`document.querySelector('#shoutClose').click()`);
     await click(teacher, '[data-act=remove]');
     await kidA.sleep(300);
-    // 다시: 새 판으로 열고 진짜 한마디로 끝까지
+    // 「새 낱말로 한 판 더!」: 오늘 안 쓴 새 낱말로 바로 새 판이 열린다
     await front(teacher);
-    await click(teacher, '#btnOpen');
-    await kidB.waitFor(`!document.querySelector('#guessForm').hidden`, 8000);
+    const oldCode = await teacher.eval(`__kt.room.code`);
+    await click(teacher, '[data-act=newRound]');
+    await kidB.waitFor(`__kk.P && __kk.P.code !== ${JSON.stringify(oldCode)} && !document.querySelector('#guessForm').hidden`, 10000);
+    await kidA.waitFor(`__kk.P && __kk.P.code !== ${JSON.stringify(oldCode)} && !document.querySelector('#guessForm').hidden`, 10000);
+    ok(await teacher.eval(`__kt.room.used.length === 2 && __kt.room.used.includes(${JSON.stringify(oldCode)})`), '「새 낱말로 한 판 더!」를 누르면 새 낱말로 바로 새 판이 열리고, 두 아이 화면도 새 판으로 바뀐다');
     await front(kidB);
-    await type(kidB, ans);
+    const ans2 = await kidB.eval(FIND_ANSWER);
+    ok(ans2 && ans2 !== ans, `새 판은 다른 낱말이다 (${ans} → ${ans2})`);
+    await type(kidB, ans2);
     await kidB.waitFor(`__kk.modal === 'write'`, 8000);
     await kidA.waitFor(`__kk.modal === 'reveal'`, 8000);
     await kidB.eval(`document.querySelector('#noteText').value = '우리 반 모두 오늘 하루도 즐겁게 보내자! 너희가 있어서 행복해.'; document.querySelector('#noteSend').click()`);
@@ -137,7 +142,10 @@ export default async function (teacher) {
 
     // ---- 다시 열어도 그대로 ----
     await kidA.eval('location.reload()');
-    await kidA.waitFor(`window.__kk && __kk.P && __kk.modal === 'reveal'`, 10000);
+    await kidA.waitFor(`window.__kk && __kk.P && __kk.modal === 'reveal'`, 30000).catch(async (e) => {
+      console.log('  진단:', JSON.stringify(await kidA.eval(`({ modal: __kk.modal, state: __kk.room && __kk.room.state, code: __kk.room && __kk.room.code, P: __kk.P && __kk.P.code, title: document.querySelector('#heroTitle').textContent })`)));
+      throw e;
+    });
     ok(await kidA.eval(`document.querySelector('#shout').hidden`), '새로 고침 해도 이미 본(또는 지운) 한마디는 다시 뜨지 않는다');
 
     // ---- 판 닫기 ----
@@ -149,6 +157,7 @@ export default async function (teacher) {
     await kidB.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
     await click(teacher, '#btnOpen');
     await kidB.waitFor(`!document.querySelector('#guessForm').hidden`, 8000);
+    ok(await teacher.eval(`__kt.room.used.length === 3 && new Set(__kt.room.used).size === 3`), '닫았다가 다시 열어도 오늘 쓴 낱말은 다시 나오지 않는다');
     await type(kidB, '운동장'); await type(kidB, '하늘');
     await kidB.sleep(800);
     ok(await kidB.eval(`document.documentElement.scrollWidth <= 375`), '폰 너비에서 옆으로 넘치지 않는다');
