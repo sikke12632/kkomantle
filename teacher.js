@@ -4,8 +4,8 @@
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
   isAnswer, findAnswer, isShown, tier, confetti, josa,
-} from './common.js?v=4';
-import { B, TEACHER_EMAIL } from './fb.js?v=4';
+} from './common.js?v=5';
+import { B, TEACHER_EMAIL } from './fb.js?v=5';
 
 const ROOM = roomId();
 const TOP_N = 3;
