@@ -3,7 +3,7 @@
 // data/schedule.json 날짜 → 문제 코드 (선생님이 판을 열 때 오늘 문제로 쓴다)
 // data/p/<코드>.json 문제 하나: 낱말마다 점수, 정답 확인 해시, 뜻풀이
 
-export const VER = 5; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
+export const VER = 6; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
 export const HOT_RANK = 1000; // 이 순위 안이면 "가까워요" 표시
 export const $ = (s) => document.querySelector(s);
 // 우리 반 출석 번호: 1~15번, 51~63번 (넉넉하게 3명씩 더). firestore.rules 의 okNum 과 같이 고친다.

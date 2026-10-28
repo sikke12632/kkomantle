@@ -4,9 +4,9 @@
 import {
   $, HOT_RANK, NUM_GROUPS, isNum, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
   isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
-} from './common.js?v=5';
-import { B } from './fb.js?v=5';
-import { BAN } from './ban.js?v=5';
+} from './common.js?v=6';
+import { B } from './fb.js?v=6';
+import { BAN } from './ban.js?v=6';
 
 const ROOM = roomId();
 const S = { W: null, P: null, uid: '', num: isNum(load('num', 0)) ? load('num', 0) : 0, room: null, round: '', game: null, modal: '', sending: false };
