@@ -43,14 +43,19 @@ function usedToday() {
   return u;
 }
 // 다음 낱말: 오늘 순서표 낱말부터, 그 뒤는 순서표에서 멀리 떨어진 낱말. 오늘 쓴 것은 건너뛴다.
+// 주제도 골고루: 오늘 이미 나온 주제(동물·음식·역사…)는 다른 주제를 다 돌 때까지 건너뛴다.
 // S.pick 은 「다른 낱말로」를 누른 횟수만큼 더 건너뛴다.
 function candidateCode() {
   const n = Math.max(0, Math.round((new Date(kstToday()) - new Date(S.sched.start)) / 864e5));
-  const L = S.sched.days.length, used = usedToday();
-  let skip = S.pick;
-  for (let k = 0; k < L; k++) {
-    const c = S.sched.days[(n + k * 97) % L];
-    if (!used.has(c) && skip-- === 0) return c;
+  const L = S.sched.days.length, used = usedToday(), topics = S.sched.topics || {};
+  const usedTopics = new Set([...used].map((c) => topics[c]).filter(Boolean));
+  for (const freshTopic of [true, false]) {
+    let skip = S.pick;
+    for (let k = 0; k < L; k++) {
+      const c = S.sched.days[(n + k * 97) % L];
+      if (used.has(c) || (freshTopic && k > 0 && usedTopics.has(topics[c]))) continue;
+      if (skip-- === 0) return c;
+    }
   }
   return S.sched.days[n % L];
 }
