@@ -76,7 +76,7 @@ async function onRoom(room) {
     render();
     document.documentElement.style.setProperty('--heat', 1);
     hero(room.solvedUid === S.uid ? '내가 비밀 낱말을 찾았어요!' : `${room.solvedNum}번 친구가 찾았어요!`,
-      `오늘의 비밀 낱말은 <b>「${esc(room.answer)}」</b>였어요.`);
+      `오늘의 비밀 낱말은 <b>「${esc(room.answer)}」</b>${josa(room.answer, "이었어요", "였어요")}. <span class="next-round elapsed"></span>`);
     if (room.solvedUid === S.uid) showMine(room); else showReveal(room);
   } else {
     view('play');
@@ -133,6 +133,10 @@ function renderTop(room) {
 // 1초마다: 흐른 시간, 다음 공개까지 남은 시간
 setInterval(() => {
   const r = S.room;
+  if (r && r.state === 'solved' && r.autoNext) { // 선생님이 「저절로 다시」를 켰으면 남은 시간을 보여 준다
+    const left = r.solvedAt + r.autoNext * 60e3 - Date.now();
+    document.querySelectorAll('.next-round').forEach((el) => { el.textContent = left > 0 ? `다음 낱말까지 ${mmss(left)}` : '곧 새 낱말이 열려요!'; });
+  }
   if (!r || r.state !== 'open') return;
   const el = $('#elapsed');
   if (el && r.openedAt) el.textContent = `· 시작하고 ${mmss(Date.now() - r.openedAt)}`;
@@ -187,7 +191,7 @@ async function win(w, i) {
 
 // ---------- 맞힌 뒤 ----------
 function answerBlock(room) {
-  return `<div class="answer">${esc(room.answer)}</div>${S.P.gloss ? `<p class="gloss">${esc(S.P.gloss)}</p>` : ''}
+  return `${room.autoNext ? '<p class="sub next-round"></p>' : ''}<div class="answer">${esc(room.answer)}</div>${S.P.gloss ? `<p class="gloss">${esc(S.P.gloss)}</p>` : ''}
     <h3>비밀 낱말과 가장 가까운 낱말 10개</h3>
     <ol class="near">${nearest(S.P, S.W, 10).map((i) => `<li>${esc(S.W.words[i])}<span>${fmt(S.P.scores[i])}</span></li>`).join('')}</ol>`;
 }

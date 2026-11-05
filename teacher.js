@@ -3,13 +3,13 @@
 // 접근 규칙이 선생님 계정(TEACHER_EMAIL)만 판을 바꾸게 막는다.
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
-  isAnswer, findAnswer, isShown, tier, confetti, josa,
+  isAnswer, findAnswer, isShown, tier, confetti, josa, load, save,
 } from './common.js?v=6';
 import { B, TEACHER_EMAIL } from './fb.js?v=6';
 
 const ROOM = roomId();
 const TOP_N = 3;
-const S = { W: null, sched: null, room: null, players: [], notes: [], P: null, answer: '', pick: 0, peek: false, unsub: [], revealing: false, lastSolved: 0, seq: 0 };
+const S = { W: null, sched: null, room: null, players: [], notes: [], P: null, answer: '', pick: 0, peek: false, unsub: [], revealing: false, autoOpening: false, realSolve: 0, lastSolved: 0, seq: 0 };
 
 // ---------- 들어가기 ----------
 function showLogin(msg = '') { $('#login').hidden = false; $('#desk').hidden = true; $('#btnOut').hidden = true; $('#loginMsg').textContent = msg; }
@@ -73,6 +73,7 @@ async function onRoom(room) {
   $('#btnClose').disabled = !room || room.state === 'closed';
   $('#btnOther').hidden = open || solved;
   if (room && room.revealEvery !== undefined) $('#revealEvery').value = String(room.revealEvery);
+  if (room && room.autoNext !== undefined) $('#autoNext').value = String(room.autoNext);
   // 아이가 올린 '맞힘'이 진짜 정답이 아니면 판을 다시 연다
   if (solved && !(await solveIsReal(room))) {
     console.warn('가짜 맞힘이라 판을 다시 엶', room.code, room.answer, room.solvedNum);
@@ -80,6 +81,7 @@ async function onRoom(room) {
     return;
   }
   if (seq !== S.seq) return;
+  if (solved) S.realSolve = room.solvedAt;
   renderTop();
   renderSolved();
 }
@@ -112,7 +114,7 @@ async function openRoom() {
   if (r && S.players.length + S.notes.length) await B.clearRoom(ROOM);
   const now = Date.now();
   await B.setRoom(ROOM, {
-    state: 'open', code: S.P.code, openedAt: now, top: [], topAt: now, revealEvery: +$('#revealEvery').value,
+    state: 'open', code: S.P.code, openedAt: now, top: [], topAt: now, revealEvery: +$('#revealEvery').value, autoNext: +$('#autoNext').value,
     answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [...new Set(used)],
   });
   S.pick = 0;
@@ -148,6 +150,19 @@ function renderTop() {
 // 1초마다: 흐른 시간, 공개할 때가 되면 공개
 setInterval(() => {
   const r = S.room;
+  // 누가 맞히고 정해진 시간이 지나면 오늘 안 쓴 새 낱말로 저절로 다시 연다(이 화면이 켜져 있어야 한다)
+  // 이 화면이 진짜 정답으로 확인한 맞힘(S.realSolve)일 때만 센다
+  if (r && r.state === 'solved' && r.autoNext && typeof r.solvedAt === 'number' && S.realSolve === r.solvedAt) {
+    const left = r.solvedAt + r.autoNext * 60e3 - Date.now();
+    const el = $('#autoLeft');
+    if (el) el.textContent = `${mmss(left)} 뒤에 새 낱말로 저절로 다시 열려요.`;
+    if (left <= 0 && !S.autoOpening) {
+      S.autoOpening = true;
+      const at = r.solvedAt;
+      (S.room && S.room.state === 'solved' && S.room.solvedAt === at ? openRoom() : Promise.resolve())
+        .catch((e) => console.error(e)).finally(() => { S.autoOpening = false; });
+    }
+  }
   if (!r || r.state !== 'open') { $('#tElapsed').textContent = ''; $('#revealNext').textContent = ''; return; }
   $('#tElapsed').textContent = `시작하고 ${mmss(Date.now() - r.openedAt)}`;
   if (!r.revealEvery) { $('#revealNext').textContent = '자동 공개를 껐어요.'; return; }
@@ -177,7 +192,7 @@ function renderSolved() {
     html = `<p class="sub left">${r.solvedNum}번이 친구들에게 보낼 한마디를 쓰고 있어요… 다 쓰면 바로 모두의 화면에 떠요.</p>
       <div class="t-btns again"><button class="btn dark small" data-act="newRound">기다리지 않고 새 낱말로 한 판 더</button></div>`;
   }
-  $('#noteArea').innerHTML = html;
+  $('#noteArea').innerHTML = html + (r.autoNext ? '<p id="autoLeft" class="sub left small"></p>' : '');
 }
 
 // 한마디는 선생님 검토 없이 바로 뜬다(담임 결정). 선생님은 다시 띄우거나, 급할 때 지울 수만 있다.
@@ -212,6 +227,7 @@ async function start() {
   [S.W, S.sched] = await Promise.all([loadWords(), getJSON('data/schedule.json')]);
   await usePuzzle(codeForDate(S.sched, kstToday()));
 
+  $('#autoNext').value = String(load('autoNext', 10));
   $('#btnLogin').addEventListener('click', async () => {
     try { enter(await B.signInTeacher()); } catch (e) { showLogin('들어가지 못했어요: ' + (e.code || e.message)); }
   });
@@ -221,6 +237,7 @@ async function start() {
   $('#btnPeek').addEventListener('click', () => { S.peek = !S.peek; renderWord(); });
   $('#btnOther').addEventListener('click', async () => { S.pick++; await usePuzzle(candidateCode()); });
   $('#btnReveal').addEventListener('click', () => reveal());
+  $('#autoNext').addEventListener('change', () => { save('autoNext', +$('#autoNext').value); if (S.room && S.room.state !== 'closed') B.updateRoom(ROOM, { autoNext: +$('#autoNext').value }); });
   $('#revealEvery').addEventListener('change', () => { if (S.room && S.room.state === 'open') B.updateRoom(ROOM, { revealEvery: +$('#revealEvery').value }); });
   $('#noteArea').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) noteAct(b.dataset.act).catch((er) => alert(er.code || er.message)); });
 
