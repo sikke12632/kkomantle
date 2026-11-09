@@ -128,3 +128,54 @@ export function confetti(n = 70) {
   box.innerHTML = html;
   setTimeout(() => { box.innerHTML = ''; }, 5000);
 }
+
+// ---------- 판의 시계: 다음 낱말 고르기·반이 찾은 낱말 (선생님 화면과 아이 화면이 똑같이 계산한다) ----------
+export const DEFAULTS = { revealEvery: 90, autoNext: 10 };
+
+// 학교에 있을 때만 저절로 연다: 월~금, 한국 시간 7:30~16:30
+export function schoolTime(now = Date.now()) {
+  const d = new Date(now + 9 * 3600e3);
+  const day = d.getUTCDay(), min = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return day >= 1 && day <= 5 && min >= 7 * 60 + 30 && min < 16 * 60 + 30;
+}
+
+// 오늘 이미 쓴 낱말(판 문서의 used + 지금 낱말). 하루에 여러 판을 해도 같은 낱말이 다시 나오지 않게.
+export function usedCodes(room) {
+  const u = new Set((room && room.used) || []);
+  if (room && room.code) u.add(room.code);
+  return u;
+}
+
+// 다음 낱말: 오늘 순서표 낱말부터, 그 뒤는 순서표에서 멀리 떨어진 낱말. 오늘 쓴 것은 건너뛴다.
+// 주제도 골고루: 오늘 이미 나온 주제(동물·음식·역사…)는 다른 주제를 다 돌 때까지 건너뛴다.
+// pick 은 선생님이 「다른 낱말로」를 누른 횟수만큼 더 건너뛴다.
+export function nextCode(sched, room, pick = 0) {
+  const n = Math.max(0, dayDiff(sched.start, kstToday()));
+  const L = sched.days.length, used = usedCodes(room), topics = sched.topics || {};
+  const usedTopics = new Set([...used].map((c) => topics[c]).filter(Boolean));
+  for (const freshTopic of [true, false]) {
+    let skip = pick;
+    for (let k = 0; k < L; k++) {
+      const c = sched.days[(n + k * 97) % L];
+      if (used.has(c) || (freshTopic && k > 0 && usedTopics.has(topics[c]))) continue;
+      if (skip-- === 0) return c;
+    }
+  }
+  return sched.days[n % L];
+}
+
+// 이번 판(round = 판을 연 시각)에 아이들이 찾은 낱말 가운데 가장 가까운 n개.
+// 게임이 보여 줘도 되는 낱말만, 정답은 빼고.
+export function topWords(players, P, W, round, n = 3) {
+  const best = new Map();
+  for (const p of players) {
+    if (p.round !== round) continue;
+    for (const x of p.best || []) {
+      const i = W.index.get(x.w);
+      if (i === undefined || !isShown(W, i) || isAnswer(P, x.w)) continue;
+      const r = P.rankOf[i];
+      if (!best.has(x.w) || best.get(x.w) > r) best.set(x.w, r);
+    }
+  }
+  return [...best].map(([w, r]) => ({ w, r })).sort((a, b) => a.r - b.r).slice(0, n);
+}

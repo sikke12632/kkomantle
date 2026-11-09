@@ -4,12 +4,15 @@
 import {
   $, HOT_RANK, NUM_GROUPS, isNum, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
   isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
+  getJSON, DEFAULTS, schoolTime, nextCode, topWords,
 } from './common.js?v=7';
 import { B } from './fb.js?v=7';
 import { BAN } from './ban.js?v=7';
 
 const ROOM = roomId();
-const S = { W: null, P: null, uid: '', num: isNum(load('num', 0)) ? load('num', 0) : 0, room: null, round: '', game: null, modal: '', sending: false };
+const DAILY = ROOM === kstToday(); // 오늘 판(시험용 판이 아님)
+const AUTOSTART = DAILY || new URLSearchParams(location.search).has('autostart'); // 시험용 판은 ?autostart 일 때만 아이 기기가 첫 판을 연다
+const S = { W: null, P: null, sched: null, uid: '', num: isNum(load('num', 0)) ? load('num', 0) : 0, room: null, round: '', game: null, modal: '', sending: false };
 let syncTimer = 0;
 
 // ---------- 화면 고르기: num(번호 넣기) / wait(기다림) / play(푸는 중) / solved(누군가 맞힘) ----------
@@ -143,6 +146,47 @@ setInterval(() => {
   $('#ctNext').textContent = r.revealEvery ? `다음 공개까지 ${mmss((r.topAt || r.openedAt) + r.revealEvery * 1000 - Date.now())}` : '';
 }, 1000);
 
+// ---------- 판의 시계: 선생님 화면이 꺼져 있어도 반 판이 돌게, 아이 기기가 맡는다 ----------
+// 할 일 세 가지: 아침 첫 판 열기, 정해진 시간마다 반이 찾은 낱말 공개, 맞히고 N분 뒤 새 낱말로 다시.
+// 기기 서른 대가 한꺼번에 하지 않게, 때가 되면 저마다 0~12초 사이 아무 때나 기다렸다가
+// 그동안 다른 기기가 이미 했으면(판 소식이 바뀌었으면) 그만둔다. 겹쳐도 서버 규칙이 둘째부터 거절한다.
+const CLOCK = { key: '', at: 0, busy: false };
+function clockDue(r, now) {
+  if (!S.sched || !S.uid) return '';
+  if (!r) return AUTOSTART && (!DAILY || schoolTime(now)) ? 'start' : '';
+  if (r.state === 'open' && r.revealEvery && S.P && S.P.code === r.code && now >= (r.topAt || r.openedAt) + r.revealEvery * 1000) return 'reveal';
+  if (r.state === 'solved' && r.autoNext && typeof r.solvedAt === 'number' && S.P && S.P.code === r.code && isAnswer(S.P, r.answer)
+    && now >= r.solvedAt + r.autoNext * 60e3 && (!DAILY || schoolTime(now))) return 'next';
+  return '';
+}
+async function clockDo(job, r) {
+  const now = Date.now();
+  if (job === 'start') {
+    const st = { ...DEFAULTS, ...((await B.getSettings().catch(() => null)) || {}) };
+    const code = nextCode(S.sched, null);
+    await B.createRoom(ROOM, { state: 'open', code, openedAt: now, top: [], topAt: now, revealEvery: st.revealEvery, autoNext: st.autoNext,
+      answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [code] });
+  } else if (job === 'reveal') {
+    const top = topWords(await B.getPlayers(ROOM), S.P, S.W, r.openedAt);
+    await B.updateRoomIf(ROOM, { state: 'open', topAt: r.topAt }, { top, topAt: now });
+  } else if (job === 'next') {
+    const code = nextCode(S.sched, r);
+    await B.updateRoomIf(ROOM, { state: 'solved', solvedAt: r.solvedAt }, { state: 'open', code, openedAt: now, top: [], topAt: now,
+      answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [...(r.used || []), code] });
+  }
+}
+setInterval(() => {
+  if (DAILY && kstToday() !== ROOM) { location.reload(); return; } // 날짜가 바뀌면 오늘 판으로
+  const r = S.room, now = Date.now();
+  const job = clockDue(r, now);
+  const key = job && `${job}:${r ? `${r.openedAt}:${r.topAt}:${r.solvedAt}` : ''}`;
+  if (!job || CLOCK.busy) { CLOCK.key = ''; return; }
+  if (CLOCK.key !== key) { CLOCK.key = key; CLOCK.at = now + Math.random() * 12000; return; }
+  if (now < CLOCK.at) return;
+  CLOCK.busy = true;
+  clockDo(job, r).catch(() => {}).finally(() => { CLOCK.busy = false; CLOCK.key = ''; });
+}, 1000);
+
 // ---------- 낱말 넣기 ----------
 function submit(raw) {
   const g = S.game, P = S.P;
@@ -170,7 +214,7 @@ function syncSoon() {
   syncTimer = setTimeout(() => {
     const P = S.P, g = S.game;
     const best = [...g.guesses].sort((a, b) => P.scores[b.i] - P.scores[a.i]).slice(0, 5).map((x) => ({ w: x.w, r: P.rankOf[x.i] }));
-    B.setPlayer(ROOM, S.uid, { num: S.num, best, count: g.guesses.length, at: Date.now() }).catch(() => {});
+    B.setPlayer(ROOM, S.uid, { num: S.num, best, count: g.guesses.length, at: Date.now(), round: S.room.openedAt }).catch(() => {});
   }, 1200);
 }
 
@@ -299,7 +343,7 @@ async function start() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#mClose').hidden) closeModal(); });
 
   try {
-    S.W = await loadWords();
+    [S.W, S.sched] = await Promise.all([loadWords(), getJSON('data/schedule.json')]);
     S.uid = await B.signInKid();
   } catch (e) {
     console.error(e);

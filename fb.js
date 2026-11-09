@@ -4,7 +4,8 @@
 // Firestore 모양 (규칙: 작업 저장소 firestore.rules)
 //   kk_rooms/{판}                state('open'|'solved'|'closed'), code, openedAt, top[{w,r}], topAt, revealEvery,
 //                                answer, solvedNum, solvedUid, solvedAt, message{text,at,removed?}
-//   kk_rooms/{판}/players/{uid}  num(출석 번호), best[{w,r}] 가장 가까운 낱말 5개, count, at
+//   kk_rooms/{판}/players/{uid}  num(출석 번호), best[{w,r}] 가장 가까운 낱말 5개, count, at, round(그 판을 연 시각)
+//   kk_settings/class            revealEvery, autoNext (선생님이 고른 값. 아이 기기가 아침 첫 판을 열 때 쓴다)
 //   (맞힌 아이의 한마디는 판 문서의 message 에 바로 쓴다. 금지어는 아이 화면과 규칙이 막는다)
 
 const CONFIG = {
@@ -39,6 +40,12 @@ async function firebaseBackend() {
     onRoom(id, cb, onErr) { return F.onSnapshot(room(id), (s) => cb(s.exists() ? { ...s.data(), _pending: s.metadata.hasPendingWrites } : null), onErr); },
     setRoom(id, data) { return F.setDoc(room(id), data); },
     updateRoom(id, patch) { return F.updateDoc(room(id), patch); },
+    // 아이 기기가 판의 시계 노릇을 할 때: 여러 기기가 겹치면 서버 규칙이 둘째부터 거절한다(expect 는 가짜 서버만 본다)
+    createRoom(id, data) { return F.setDoc(room(id), data); },
+    updateRoomIf(id, expect, patch) { return F.updateDoc(room(id), patch); },
+    async getPlayers(id) { return rows(await F.getDocs(sub(id, 'players'))); },
+    async getSettings() { const s = await F.getDoc(F.doc(db, 'kk_settings', 'class')); return s.exists() ? s.data() : null; },
+    setSettings(d) { return F.setDoc(F.doc(db, 'kk_settings', 'class'), d, { merge: true }); },
     setPlayer(id, uid, data) { return F.setDoc(F.doc(sub(id, 'players'), uid), data); },
     onPlayers(id, cb, onErr) { return F.onSnapshot(sub(id, 'players'), (s) => cb(rows(s)), onErr); },
     setNote(id, uid, data) { return F.setDoc(F.doc(sub(id, 'notes'), uid), data); },
@@ -81,6 +88,15 @@ function mockBackend() {
       if (p.solvedUid && p.solvedUid !== 'teacher' && cur.state !== 'open') throw new Error('permission-denied');
       put('rooms/' + id, { ...cur, ...p });
     },
+    async createRoom(id, d) { if (get('rooms/' + id)) throw new Error('permission-denied'); put('rooms/' + id, d); },
+    async updateRoomIf(id, expect, p) {
+      const cur = get('rooms/' + id);
+      if (!cur || Object.entries(expect).some(([k, v]) => cur[k] !== v)) throw new Error('permission-denied');
+      put('rooms/' + id, { ...cur, ...p });
+    },
+    async getPlayers(id) { return list(`players/${id}/`); },
+    async getSettings() { return get('settings'); },
+    async setSettings(d) { put('settings', { ...(get('settings') || {}), ...d }); },
     async setPlayer(id, u, d) { if (get('rooms/' + id)?.state !== 'open') throw new Error('permission-denied'); put(`players/${id}/${u}`, d); },
     onPlayers: (id, cb) => watch(() => cb(list(`players/${id}/`))),
     async setNote(id, u, d) { put(`notes/${id}/${u}`, d); },

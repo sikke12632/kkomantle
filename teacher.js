@@ -1,9 +1,10 @@
 // 우리반 꼬맨틀 — 선생님 화면
-// 판 열기·닫기, 정해진 시간마다 반이 찾은 가장 가까운 낱말 공개, 맞힌 아이의 한마디 보기(급하면 지우기).
+// 판 열기·닫기, 설정(공개 간격·저절로 다시), 맞힌 아이의 한마디 보기(급하면 지우기).
+// 아침 첫 판·공개·저절로 다시는 아이 기기도 맡는다(app.js 판의 시계). 이 화면이 꺼져 있어도 판은 돈다.
 // 접근 규칙이 선생님 계정(TEACHER_EMAIL)만 판을 바꾸게 막는다.
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
-  isAnswer, findAnswer, isShown, tier, confetti, josa, load, save,
+  isAnswer, findAnswer, tier, confetti, josa, load, save, usedCodes, nextCode, topWords, DEFAULTS,
 } from './common.js?v=7';
 import { B, TEACHER_EMAIL } from './fb.js?v=7';
 
@@ -21,6 +22,7 @@ async function enter(email) {
   }
   $('#login').hidden = true; $('#desk').hidden = false; $('#btnOut').hidden = false;
   if (S.unsub.length) return;
+  B.getSettings().then((st) => { if (st && (!S.room || S.room.state === 'closed')) { $('#revealEvery').value = String(st.revealEvery ?? DEFAULTS.revealEvery); $('#autoNext').value = String(st.autoNext ?? DEFAULTS.autoNext); } }).catch(() => {});
   S.unsub.push(
     B.onRoom(ROOM, onRoom, (e) => fail(e)),
     B.onPlayers(ROOM, (p) => { S.players = p; renderKids(); }, (e) => fail(e)),
@@ -36,29 +38,9 @@ async function usePuzzle(code) {
   S.answer = findAnswer(S.P, S.W);
   renderWord();
 }
-// 오늘 이미 쓴 낱말(판 문서의 used + 지금 낱말). 하루에 여러 판을 해도 같은 낱말이 다시 나오지 않게.
-function usedToday() {
-  const u = new Set((S.room && S.room.used) || []);
-  if (S.room && S.room.code) u.add(S.room.code);
-  return u;
-}
-// 다음 낱말: 오늘 순서표 낱말부터, 그 뒤는 순서표에서 멀리 떨어진 낱말. 오늘 쓴 것은 건너뛴다.
-// 주제도 골고루: 오늘 이미 나온 주제(동물·음식·역사…)는 다른 주제를 다 돌 때까지 건너뛴다.
-// S.pick 은 「다른 낱말로」를 누른 횟수만큼 더 건너뛴다.
-function candidateCode() {
-  const n = Math.max(0, Math.round((new Date(kstToday()) - new Date(S.sched.start)) / 864e5));
-  const L = S.sched.days.length, used = usedToday(), topics = S.sched.topics || {};
-  const usedTopics = new Set([...used].map((c) => topics[c]).filter(Boolean));
-  for (const freshTopic of [true, false]) {
-    let skip = S.pick;
-    for (let k = 0; k < L; k++) {
-      const c = S.sched.days[(n + k * 97) % L];
-      if (used.has(c) || (freshTopic && k > 0 && usedTopics.has(topics[c]))) continue;
-      if (skip-- === 0) return c;
-    }
-  }
-  return S.sched.days[n % L];
-}
+// 다음 낱말 고르기는 아이 화면과 같은 계산(common.js nextCode). S.pick 은 「다른 낱말로」를 누른 횟수.
+const usedToday = () => usedCodes(S.room);
+const candidateCode = () => nextCode(S.sched, S.room, S.pick);
 
 async function onRoom(room) {
   S.room = room;
@@ -82,6 +64,7 @@ async function onRoom(room) {
   }
   if (seq !== S.seq) return;
   if (solved) S.realSolve = room.solvedAt;
+  renderKids();
   renderTop();
   renderSolved();
 }
@@ -113,6 +96,7 @@ async function openRoom() {
   const used = [...usedToday(), S.P.code];
   if (r && S.players.length + S.notes.length) await B.clearRoom(ROOM);
   const now = Date.now();
+  saveSettings();
   await B.setRoom(ROOM, {
     state: 'open', code: S.P.code, openedAt: now, top: [], topAt: now, revealEvery: +$('#revealEvery').value, autoNext: +$('#autoNext').value,
     answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [...new Set(used)],
@@ -125,17 +109,8 @@ async function closeRoom() {
 }
 
 // ---------- 반이 찾은 가장 가까운 낱말 공개 ----------
-function classTop() {
-  const best = new Map();
-  for (const p of S.players) for (const x of p.best || []) {
-    const i = S.W.index.get(x.w);
-    // 게임이 보여 줘도 되는 낱말만 모두에게 공개한다
-    if (i === undefined || !isShown(S.W, i) || !S.P || isAnswer(S.P, x.w)) continue;
-    const r = S.P.rankOf[i];
-    if (!best.has(x.w) || best.get(x.w) > r) best.set(x.w, r);
-  }
-  return [...best].map(([w, r]) => ({ w, r })).sort((a, b) => a.r - b.r).slice(0, TOP_N);
-}
+// 아이 기기도 똑같이 공개한다(선생님 화면이 꺼져 있어도 돌게). 이 화면은 켜져 있으면 같이 거든다.
+const classTop = () => topWords(S.players, S.P, S.W, S.room.openedAt, TOP_N);
 async function reveal() {
   if (!S.room || S.room.state !== 'open') return;
   await B.updateRoom(ROOM, { top: classTop(), topAt: Date.now() });
@@ -206,7 +181,8 @@ async function noteAct(act) {
 
 // ---------- 아이들 ----------
 function renderKids() {
-  const rows = [...S.players].sort((a, b) => ((a.best && a.best[0] ? a.best[0].r : 1e9) - (b.best && b.best[0] ? b.best[0].r : 1e9)) || a.num - b.num);
+  const round = S.room && S.room.openedAt;
+  const rows = S.players.filter((p) => p.round === round).sort((a, b) => ((a.best && a.best[0] ? a.best[0].r : 1e9) - (b.best && b.best[0] ? b.best[0].r : 1e9)) || a.num - b.num);
   $('#kidCount').textContent = `${rows.length}명`;
   const nums = rows.map((p) => p.num);
   const dup = [...new Set(nums.filter((n, k) => nums.indexOf(n) !== k))];
@@ -216,6 +192,9 @@ function renderKids() {
     return `<tr><td>${p.num}번</td><td>${p.count || 0}개</td><td>${b ? `${esc(b.w)} <span class="tag t${tier(b.r)}">${b.r <= HOT_RANK ? b.r + '위' : '1000위 밖'}</span>` : '-'}</td></tr>`;
   }).join('') || '<tr><td colspan="3" class="sub">아직 들어온 아이가 없어요.</td></tr>';
 }
+
+// 아이 기기가 아침 첫 판을 열 때 쓰는 설정(공개 간격, 저절로 다시)
+function saveSettings() { B.setSettings({ revealEvery: +$('#revealEvery').value, autoNext: +$('#autoNext').value }).catch((e) => console.error(e)); }
 
 // ---------- 시작 ----------
 async function start() {
@@ -237,8 +216,8 @@ async function start() {
   $('#btnPeek').addEventListener('click', () => { S.peek = !S.peek; renderWord(); });
   $('#btnOther').addEventListener('click', async () => { S.pick++; await usePuzzle(candidateCode()); });
   $('#btnReveal').addEventListener('click', () => reveal());
-  $('#autoNext').addEventListener('change', () => { save('autoNext', +$('#autoNext').value); if (S.room && S.room.state !== 'closed') B.updateRoom(ROOM, { autoNext: +$('#autoNext').value }); });
-  $('#revealEvery').addEventListener('change', () => { if (S.room && S.room.state === 'open') B.updateRoom(ROOM, { revealEvery: +$('#revealEvery').value }); });
+  $('#autoNext').addEventListener('change', () => { save('autoNext', +$('#autoNext').value); saveSettings(); if (S.room && S.room.state !== 'closed') B.updateRoom(ROOM, { autoNext: +$('#autoNext').value }); });
+  $('#revealEvery').addEventListener('change', () => { saveSettings(); if (S.room && S.room.state === 'open') B.updateRoom(ROOM, { revealEvery: +$('#revealEvery').value }); });
   $('#noteArea').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) noteAct(b.dataset.act).catch((er) => alert(er.code || er.message)); });
 
   B.onAuth((email) => (email ? enter(email) : showLogin()));
