@@ -3,7 +3,7 @@
 // data/schedule.json 날짜 → 문제 코드 (선생님이 판을 열 때 오늘 문제로 쓴다)
 // data/p/<코드>.json 문제 하나: 낱말마다 점수, 정답 확인 해시, 뜻풀이
 
-export const VER = 9; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
+export const VER = 10; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
 export const HOT_RANK = 1000; // 이 순위 안이면 "가까워요" 표시
 export const $ = (s) => document.querySelector(s);
 // 우리 반 출석 번호: 1~15번, 51~63번 (넉넉하게 3명씩 더). firestore.rules 의 okNum 과 같이 고친다.
@@ -53,9 +53,12 @@ export async function loadWords() {
   const w = await getJSON('data/words.json');
   const index = new Map();
   w.words.forEach((x, i) => index.set(x, i));
-  return { words: w.words, index, show: b64bytes(w.show) };
+  return { words: w.words, index, show: b64bytes(w.show), cls: w.cls ? b64bytes(w.cls) : null };
 }
+// 게임이 먼저 보여 줘도 되는 쉬운 낱말(가까운 낱말 목록 등)
 export function isShown(W, i) { return (W.show[i >> 3] >> (i & 7)) & 1; }
+// 아이가 직접 찾은 낱말을 반 공개 목록에 보여 줘도 되는가(금지·숨김만 뺀다). 아이가 찾은 순위 높은 낱말은 꼭 뜬다.
+export function isClassShown(W, i) { return W.cls ? (W.cls[i >> 3] >> (i & 7)) & 1 : isShown(W, i); }
 
 export function codeForDate(sched, iso) {
   const n = dayDiff(sched.start, iso);
@@ -165,14 +168,14 @@ export function nextCode(sched, room, pick = 0) {
 }
 
 // 이번 판(round = 판을 연 시각)에 아이들이 찾은 낱말 가운데 가장 가까운 n개.
-// 게임이 보여 줘도 되는 낱말만, 정답은 빼고.
+// 반 공개에 보여 줘도 되는 낱말만(금지·숨김 빼고), 정답은 빼고.
 export function topWords(players, P, W, round, n = 3) {
   const best = new Map();
   for (const p of players) {
     if (p.round !== round) continue;
     for (const x of p.best || []) {
       const i = W.index.get(x.w);
-      if (i === undefined || !isShown(W, i) || isAnswer(P, x.w)) continue;
+      if (i === undefined || !isClassShown(W, i) || isAnswer(P, x.w)) continue;
       const r = P.rankOf[i];
       if (!best.has(x.w) || best.get(x.w) > r) best.set(x.w, r);
     }

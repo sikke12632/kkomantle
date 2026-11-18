@@ -5,9 +5,9 @@ import {
   $, HOT_RANK, NUM_GROUPS, isNum, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
   isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
   getJSON, DEFAULTS, schoolTime, nextCode, topWords, mergeTop,
-} from './common.js?v=9';
-import { B } from './fb.js?v=9';
-import { BAN } from './ban.js?v=9';
+} from './common.js?v=10';
+import { B } from './fb.js?v=10';
+import { BAN } from './ban.js?v=10';
 
 const ROOM = roomId();
 const DAILY = ROOM === kstToday(); // 오늘 판(시험용 판이 아님)

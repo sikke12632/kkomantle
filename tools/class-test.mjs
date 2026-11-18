@@ -83,7 +83,7 @@ export default async function (teacher) {
     await kidA.waitFor(`document.querySelectorAll('#ctWords .ct-chip').length > 0`, 8000);
     const top = await kidA.eval(`[...document.querySelectorAll('#ctWords .ct-chip b')].map(b => b.textContent)`);
     ok(top.length >= 1 && top.length <= 3, `정해진 시간이 지나면 반이 찾은 낱말이 공개된다: ${top.join(', ')}`);
-    ok(await kidA.eval(`${JSON.stringify(top)}.every(w => { const i = __kk.W.index.get(w); return (__kk.W.show[i >> 3] >> (i & 7)) & 1; })`), '공개된 낱말은 보여 줘도 되는 낱말이다');
+    ok(await kidA.eval(`${JSON.stringify(top)}.every(w => { const i = __kk.W.index.get(w); return (__kk.W.cls[i >> 3] >> (i & 7)) & 1; })`), '공개된 낱말은 반 공개에 보여 줘도 되는 낱말이다(금지·숨김 아님)');
     await kidA.shot(join(OUT, 'kc-2-play.png'));
 
     // ---- 가짜 '맞힘'은 선생님 화면이 되돌린다 ----
