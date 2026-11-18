@@ -3,7 +3,7 @@
 // data/schedule.json 날짜 → 문제 코드 (선생님이 판을 열 때 오늘 문제로 쓴다)
 // data/p/<코드>.json 문제 하나: 낱말마다 점수, 정답 확인 해시, 뜻풀이
 
-export const VER = 8; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
+export const VER = 9; // index.html·teacher.html 의 ?v=, app.js·teacher.js 의 import ?v= 와 같이 올린다
 export const HOT_RANK = 1000; // 이 순위 안이면 "가까워요" 표시
 export const $ = (s) => document.querySelector(s);
 // 우리 반 출석 번호: 1~15번, 51~63번 (넉넉하게 3명씩 더). firestore.rules 의 okNum 과 같이 고친다.
@@ -176,6 +176,16 @@ export function topWords(players, P, W, round, n = 3) {
       const r = P.rankOf[i];
       if (!best.has(x.w) || best.get(x.w) > r) best.set(x.w, r);
     }
+  }
+  return [...best].map(([w, r]) => ({ w, r })).sort((a, b) => a.r - b.r).slice(0, n);
+}
+
+// 이미 공개한 낱말(old)과 새로 모은 낱말(add)을 합쳐 가장 가까운 n개. 한 판 안에서는 공개 목록이 뒤로 가지 않는다
+// (아이들 기록을 다 못 읽은 기기가 공개해도 앞서 공개한 낱말이 사라지지 않게).
+export function mergeTop(old, add, n = 3) {
+  const best = new Map();
+  for (const x of [...(old || []), ...(add || [])]) {
+    if (x && typeof x.w === 'string' && typeof x.r === 'number' && (!best.has(x.w) || best.get(x.w) > x.r)) best.set(x.w, x.r);
   }
   return [...best].map(([w, r]) => ({ w, r })).sort((a, b) => a.r - b.r).slice(0, n);
 }

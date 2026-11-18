@@ -4,10 +4,10 @@
 import {
   $, HOT_RANK, NUM_GROUPS, isNum, load, save, esc, fmt, josa, ro, korDate, kstToday, mmss, roomId, loadWords, loadPuzzle,
   isAnswer, nearest, normalize, tier, SAY, heatOf, coldSay, heatCell, confetti, b64bytes,
-  getJSON, DEFAULTS, schoolTime, nextCode, topWords,
-} from './common.js?v=8';
-import { B } from './fb.js?v=8';
-import { BAN } from './ban.js?v=8';
+  getJSON, DEFAULTS, schoolTime, nextCode, topWords, mergeTop,
+} from './common.js?v=9';
+import { B } from './fb.js?v=9';
+import { BAN } from './ban.js?v=9';
 
 const ROOM = roomId();
 const DAILY = ROOM === kstToday(); // 오늘 판(시험용 판이 아님)
@@ -167,7 +167,7 @@ async function clockDo(job, r) {
     await B.createRoom(ROOM, { state: 'open', code, openedAt: now, top: [], topAt: now, revealEvery: st.revealEvery, autoNext: st.autoNext,
       answer: null, solvedNum: null, solvedUid: null, solvedAt: null, message: null, used: [code] });
   } else if (job === 'reveal') {
-    const top = topWords(await B.getPlayers(ROOM), S.P, S.W, r.openedAt);
+    const top = mergeTop(r.top, topWords(await B.getPlayers(ROOM), S.P, S.W, r.openedAt));
     await B.updateRoomIf(ROOM, { state: 'open', topAt: r.topAt }, { top, topAt: now });
   } else if (job === 'next') {
     const code = nextCode(S.sched, r);

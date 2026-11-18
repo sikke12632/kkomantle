@@ -43,7 +43,9 @@ async function firebaseBackend() {
     // 아이 기기가 판의 시계 노릇을 할 때: 여러 기기가 겹치면 서버 규칙이 둘째부터 거절한다(expect 는 가짜 서버만 본다)
     createRoom(id, data) { return F.setDoc(room(id), data); },
     updateRoomIf(id, expect, patch) { return F.updateDoc(room(id), patch); },
-    async getPlayers(id) { return rows(await F.getDocs(sub(id, 'players'))); },
+    // 꼭 서버에서 읽는다. getDocs 는 막 깨어나 연결이 덜 된 기기에서 빈 목록(기기 안 사본)을 돌려줘서
+    // 반이 찾은 낱말이 빈 칸으로 공개된 일이 있었다(2026-11-18). 서버에 못 닿으면 실패하고, 공개는 다음 기기가 한다.
+    async getPlayers(id) { return rows(await F.getDocsFromServer(sub(id, 'players'))); },
     async getSettings() { const s = await F.getDoc(F.doc(db, 'kk_settings', 'class')); return s.exists() ? s.data() : null; },
     setSettings(d) { return F.setDoc(F.doc(db, 'kk_settings', 'class'), d, { merge: true }); },
     setPlayer(id, uid, data) { return F.setDoc(F.doc(sub(id, 'players'), uid), data); },

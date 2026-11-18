@@ -58,6 +58,15 @@ export default async function (kidA) {
     await kidA.sleep(14000);
     ok((await room(kidA)).topAt === r2.topAt, '공개는 한 번만 했다(다음 공개 때까지 다시 안 함)');
 
+    // 3-1) 아이들 기록을 못 읽은 기기(막 깨어나 연결이 덜 된 디벗)가 공개해도 이미 공개한 낱말이 빈 칸이 되지 않는다(2026-11-18)
+    const saved = await kidA.eval(`(() => { const o = {}; for (const k of Object.keys(localStorage)) if (k.startsWith('kkmock:players/${ROOM}/')) { o[k] = localStorage.getItem(k); localStorage.removeItem(k); } return o; })()`);
+    await edit(kidA, `r.topAt = Date.now() - r.revealEvery * 1000 - 1000`);
+    const due = (await room(kidA)).topAt;
+    await kidA.waitFor(`JSON.parse(localStorage.getItem('kkmock:rooms/${ROOM}')).topAt !== ${due}`, 60000);
+    const rz = await room(kidA);
+    ok(JSON.stringify(rz.top) === JSON.stringify(r2.top), `기록을 못 읽은 공개에도 공개한 낱말이 그대로다: ${rz.top.map((x) => x.w).join(', ')}`);
+    await kidA.eval(`(() => { const o = ${JSON.stringify(saved)}; for (const k in o) localStorage.setItem(k, o[k]); })()`);
+
     // 4) 55번이 맞히고, N분이 지나면 아이 기기가 새 낱말로 새 판을 연다(한 번만)
     const ans = await kidB.eval(FIND_ANSWER);
     await type(kidB, ans);

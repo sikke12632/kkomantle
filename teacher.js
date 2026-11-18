@@ -4,9 +4,9 @@
 // 접근 규칙이 선생님 계정(TEACHER_EMAIL)만 판을 바꾸게 막는다.
 import {
   $, HOT_RANK, esc, mmss, korDate, roomId, getJSON, loadWords, loadPuzzle, codeForDate, kstToday,
-  isAnswer, findAnswer, tier, confetti, josa, load, save, usedCodes, nextCode, topWords, DEFAULTS,
-} from './common.js?v=8';
-import { B, TEACHER_EMAIL } from './fb.js?v=8';
+  isAnswer, findAnswer, tier, confetti, josa, load, save, usedCodes, nextCode, topWords, mergeTop, DEFAULTS,
+} from './common.js?v=9';
+import { B, TEACHER_EMAIL } from './fb.js?v=9';
 
 const ROOM = roomId();
 const TOP_N = 3;
@@ -110,7 +110,7 @@ async function closeRoom() {
 
 // ---------- 반이 찾은 가장 가까운 낱말 공개 ----------
 // 아이 기기도 똑같이 공개한다(선생님 화면이 꺼져 있어도 돌게). 이 화면은 켜져 있으면 같이 거든다.
-const classTop = () => topWords(S.players, S.P, S.W, S.room.openedAt, TOP_N);
+const classTop = () => mergeTop(S.room.top, topWords(S.players, S.P, S.W, S.room.openedAt, TOP_N), TOP_N);
 async function reveal() {
   if (!S.room || S.room.state !== 'open') return;
   await B.updateRoom(ROOM, { top: classTop(), topAt: Date.now() });
